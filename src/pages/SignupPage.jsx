@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
-import { useNavigate } from "react-router-dom";
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { useNavigate, useLocation } from "react-router-dom";
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import './SignupPage.css';
@@ -28,6 +28,7 @@ const SignupPage = () => {
   const [resendTimer, setResendTimer] = useState(0);
   const [resendActive, setResendActive] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     // countdown for resend
@@ -125,49 +126,40 @@ const SignupPage = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+    const unsub = onAuthStateChanged(auth, (currentUser) => {
       if (isMounted && currentUser) {
-        try {
-          const userDocId = await ensureUserDocId(currentUser.uid, currentUser.email || null);
-          await setDoc(doc(db, "users", userDocId), {
-            email: currentUser.email,
-            uid: currentUser.uid,
-            userId: userDocId,
-            fullName: currentUser.displayName,
-          }, { merge: true }).catch(() => {});
-        } catch (e) {
-          console.warn("User doc setup error:", e);
-        }
-        navigate("/userdata");
+        handlePostSignup(currentUser);
       }
     });
-
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (isMounted && result && result.user) {
-          try {
-            const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
-            await setDoc(doc(db, "users", userDocId), {
-              email: result.user.email,
-              uid: result.user.uid,
-              userId: userDocId,
-              fullName: result.user.displayName,
-            }, { merge: true }).catch(() => {});
-          } catch (e) {
-            console.warn("User doc setup error:", e);
-          }
-          navigate("/userdata");
-        }
-      })
-      .catch((err) => {
-        console.error("Redirect signup error:", err);
-      });
 
     return () => {
       isMounted = false;
       unsub();
     };
-  }, []);
+  }, [navigate, location]);
+
+  const handlePostSignup = (user) => {
+    if (!user) return;
+    (async () => {
+      try {
+        const mapRef = doc(db, 'usersByUid', user.uid);
+        const mapSnap = await getDoc(mapRef);
+        const userDocId = mapSnap.exists() && mapSnap.data()?.userDocId ? mapSnap.data().userDocId : user.uid;
+        await setDoc(doc(db, "users", userDocId), {
+          email: user.email || null,
+          uid: user.uid,
+          userId: userDocId,
+          fullName: user.displayName || null,
+        }, { merge: true });
+        await setDoc(mapRef, { userDocId, uid: user.uid }, { merge: true });
+      } catch (e) {
+        console.warn("User doc setup error:", e);
+      }
+    })();
+
+    const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
+    navigate(target, { replace: true });
+  };
 
   const handleGoogleSignup = async () => {
     setError("");
@@ -176,55 +168,19 @@ const SignupPage = () => {
     try {
       const result = await signInWithPopup(auth, provider);
       if (result?.user) {
-        const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
-        await setDoc(doc(db, "users", userDocId), {
-          email: result.user.email,
-          uid: result.user.uid,
-          userId: userDocId,
-          fullName: result.user.displayName,
-        }, { merge: true }).catch(() => {});
-        navigate("/userdata");
+        handlePostSignup(result.user);
       }
     } catch (err) {
       console.error("Google signup error:", err);
       if (err?.code === 'auth/unauthorized-domain') {
         setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
       } else if (err?.code === 'auth/popup-blocked') {
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirectErr) {
-          console.error("Redirect fallback error:", redirectErr);
-          setError("Browser blocked the signup popup and redirect. Please enable popups or redirects in your browser settings.");
-        }
+        setError("Browser blocked the signup popup! Please click the popup icon in your browser URL bar, choose 'Always allow popups', and try again.");
       } else if (err?.code === 'auth/popup-closed-by-user') {
         setError("Signup popup was closed before completion.");
       } else {
         setError(err?.message || "Google signup failed.");
       }
-    }
-  };
-
-  const ensureUserDocId = async (uid, email) => {
-    try {
-      const mapRef = doc(db, 'usersByUid', uid);
-      const mapSnap = await getDoc(mapRef);
-      if (mapSnap.exists() && mapSnap.data()?.userDocId) return mapSnap.data().userDocId;
-      const seqRef = doc(db, 'meta', 'userSequence');
-      const nextId = await runTransaction(db, async (tx) => {
-        const seqSnap = await tx.get(seqRef);
-        const curr = seqSnap.exists() ? (seqSnap.data().current || 0) : 0;
-        const updated = curr + 1;
-        tx.set(seqRef, { current: updated }, { merge: true });
-        return updated;
-      });
-      const userDocId = `SASS${String(nextId).padStart(7, '0')}`;
-      await setDoc(doc(db, 'users', userDocId), { uid, email: email || null, userId: userDocId }, { merge: true });
-      await setDoc(mapRef, { userDocId, uid }, { merge: true });
-      return userDocId;
-    } catch (err) {
-      console.warn("Fallback to uid for userDocId:", err);
-      return uid;
     }
   };
 
