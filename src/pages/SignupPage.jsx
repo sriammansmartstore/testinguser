@@ -97,6 +97,19 @@ const SignupPage = () => {
     await sendOtp();
   };
 
+  const ensureUserDocId = async (uid, email) => {
+    try {
+      const mapRef = doc(db, 'usersByUid', uid);
+      const mapSnap = await getDoc(mapRef);
+      if (mapSnap.exists() && mapSnap.data()?.userDocId) {
+        return mapSnap.data().userDocId;
+      }
+      return uid;
+    } catch (err) {
+      return uid;
+    }
+  };
+
   const verifyOtpAndCreateUser = async () => {
     if (!confirmationResult) {
       setError('No OTP request found.');
@@ -107,17 +120,32 @@ const SignupPage = () => {
     try {
       const result = await confirmationResult.confirm(otp);
       const u = result.user;
-      const userDocId = await ensureUserDocId(u.uid, u.email || null);
-      await setDoc(doc(db, 'users', userDocId), {
-        uid: u.uid,
-        userId: userDocId,
-        number: number.replace(/\D/g, ''),
-        countryCode,
-        phoneVerified: true,
-        email: u.email || null
-      }, { merge: true });
-      navigate('/userdata');
+
+      // Update in background without blocking immediate navigation
+      (async () => {
+        try {
+          const userDocId = await ensureUserDocId(u.uid, u.email || null);
+          await setDoc(doc(db, 'users', userDocId), {
+            uid: u.uid,
+            userId: userDocId,
+            number: number.replace(/\D/g, ''),
+            countryCode,
+            phoneVerified: true,
+            email: u.email || null
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Background signup user doc sync:', e);
+        }
+      })();
+
+      navigate('/userdata', { replace: true });
+      setTimeout(() => {
+        if (window.location.pathname === '/signup') {
+          window.location.replace('/userdata');
+        }
+      }, 100);
     } catch (err) {
+      console.error('Signup OTP confirmation error:', err);
       setError(err?.message || 'Verification failed. Please try again.');
     } finally {
       setVerifying(false);
@@ -154,23 +182,38 @@ const SignupPage = () => {
     if (!user) return;
     (async () => {
       try {
-        const mapRef = doc(db, 'usersByUid', user.uid);
-        const mapSnap = await getDoc(mapRef);
-        const userDocId = mapSnap.exists() && mapSnap.data()?.userDocId ? mapSnap.data().userDocId : user.uid;
+        const userDocId = await ensureUserDocId(user.uid, user.email || null);
         await setDoc(doc(db, "users", userDocId), {
           email: user.email || null,
           uid: user.uid,
           userId: userDocId,
           fullName: user.displayName || null,
         }, { merge: true });
-        await setDoc(mapRef, { userDocId, uid: user.uid }, { merge: true });
       } catch (e) {
         console.warn("User doc setup error:", e);
       }
     })();
 
     const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
-    navigate(target, { replace: true });
+    try {
+      navigate(target, { replace: true });
+    } catch (_) {}
+    setTimeout(() => {
+      if (window.location.pathname === '/signup' || window.location.pathname === '/login') {
+        window.location.replace(target);
+      }
+    }, 100);
+  };
+
+  const handleDirectGoogleRedirect = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithRedirect(auth, provider);
+    } catch (err) {
+      console.error("Direct redirect error:", err);
+      setError(err?.message || "Google redirect failed.");
+    }
   };
 
   const handleGoogleSignup = async () => {
@@ -193,7 +236,7 @@ const SignupPage = () => {
           return;
         } catch (redirectErr) {
           console.error("Redirect fallback error:", redirectErr);
-          setError("Browser blocked both popup and redirect. Please check browser settings to allow Google login.");
+          setError("Browser blocked the signup popup! Click 'Continue with Google' button below to open Google directly.");
         }
       } else if (err?.code === 'auth/popup-closed-by-user') {
         setError("Signup popup was closed before completion.");
@@ -256,6 +299,17 @@ const SignupPage = () => {
           </Box>
           <Box sx={{ textTransform: 'none', fontWeight: 700 }}>Sign Up with Google</Box>
         </Button>
+        {error && (error.toLowerCase().includes('popup') || error.toLowerCase().includes('blocked')) && (
+          <Button
+            variant="contained"
+            color="primary"
+            fullWidth
+            onClick={handleDirectGoogleRedirect}
+            sx={{ textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 2 }}
+          >
+            Click here to Continue with Google
+          </Button>
+        )}
         <Typography className="switch-link" onClick={() => navigate("/login")} sx={{ cursor: 'pointer' }}>Already have an account? Login</Typography>
       </Box>
     </Box>

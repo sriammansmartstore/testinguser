@@ -106,17 +106,27 @@ const LoginPage = () => {
     try {
       const result = await confirmationResult.confirm(otp);
       const user = result.user;
-      const userDocId = await ensureUserDocId(user.uid, user.email || null);
-      await setDoc(doc(db, 'users', userDocId), {
-        uid: user.uid,
-        userId: userDocId,
-        number: number.replace(/\D/g, ''),
-        countryCode,
-        phoneVerified: true,
-        email: user.email || null
-      }, { merge: true });
-      await handlePostLogin(user);
+      
+      // Update user details in background without blocking immediate navigation
+      (async () => {
+        try {
+          const userDocId = await ensureUserDocId(user.uid, user.email || null);
+          await setDoc(doc(db, 'users', userDocId), {
+            uid: user.uid,
+            userId: userDocId,
+            number: number.replace(/\D/g, ''),
+            countryCode,
+            phoneVerified: true,
+            email: user.email || null
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Background phone user doc sync:', e);
+        }
+      })();
+
+      handlePostLogin(user);
     } catch (err) {
+      console.error('OTP confirmation error:', err);
       setError(err?.message || 'Verification failed. Please try again.');
     } finally {
       setVerifying(false);
@@ -149,6 +159,17 @@ const LoginPage = () => {
     };
   }, [navigate, location]);
 
+  const handleDirectGoogleRedirect = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithRedirect(auth, provider);
+    } catch (err) {
+      console.error("Direct redirect error:", err);
+      setError(err?.message || "Google redirect failed.");
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setError("");
     const provider = new GoogleAuthProvider();
@@ -169,7 +190,7 @@ const LoginPage = () => {
           return;
         } catch (redirectErr) {
           console.error("Redirect fallback error:", redirectErr);
-          setError("Browser blocked both popup and redirect. Please check browser settings to allow Google login.");
+          setError("Browser blocked the login popup! Click 'Continue with Google' button below to open Google directly.");
         }
       } else if (err?.code === 'auth/popup-closed-by-user') {
         setError("Login popup was closed before completion.");
@@ -197,9 +218,7 @@ const LoginPage = () => {
     // Asynchronously update profile in Firestore in background without blocking navigation
     (async () => {
       try {
-        const mapRef = doc(db, 'usersByUid', user.uid);
-        const mapSnap = await getDoc(mapRef);
-        const userDocId = mapSnap.exists() && mapSnap.data()?.userDocId ? mapSnap.data().userDocId : user.uid;
+        const userDocId = await ensureUserDocId(user.uid, user.email || null);
         const userRef = doc(db, 'users', userDocId);
         await setDoc(userRef, {
           email: user.email || null,
@@ -215,7 +234,16 @@ const LoginPage = () => {
 
     // Immediately navigate user into the app
     const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
-    navigate(target, { replace: true });
+    try {
+      navigate(target, { replace: true });
+    } catch (_) {}
+    
+    // Fail-safe: If SPA router did not navigate away from /login, force browser window location
+    setTimeout(() => {
+      if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
+        window.location.replace(target);
+      }
+    }, 100);
   };
 
   return (
@@ -272,6 +300,17 @@ const LoginPage = () => {
           </Box>
           <Box sx={{ textTransform: 'none', fontWeight: 700 }}>Login with Google</Box>
         </Button>
+        {error && (error.toLowerCase().includes('popup') || error.toLowerCase().includes('blocked')) && (
+          <Button
+            variant="contained"
+            color="primary"
+            fullWidth
+            onClick={handleDirectGoogleRedirect}
+            sx={{ textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 2 }}
+          >
+            Click here to Continue with Google
+          </Button>
+        )}
         <Typography className="switch-link" onClick={() => navigate("/signup")}>Don't have an account? Sign Up</Typography>
       </Box>
     </Box>
