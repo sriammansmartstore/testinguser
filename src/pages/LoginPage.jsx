@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { GoogleAuthProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, getDoc, setDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import './LoginPage.css';
@@ -122,10 +122,27 @@ const LoginPage = () => {
     }
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (isMounted && result && result.user) {
+          await handlePostLogin(result.user);
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect login error:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleGoogleLogin = async () => {
     setError("");
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       await handlePostLogin(result.user);
     } catch (err) {
@@ -133,7 +150,13 @@ const LoginPage = () => {
       if (err?.code === 'auth/unauthorized-domain') {
         setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
       } else if (err?.code === 'auth/popup-blocked') {
-        setError("Browser blocked the login popup! Please click the popup icon in your browser URL bar, choose 'Always allow popups', and try again.");
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectErr) {
+          console.error("Redirect fallback error:", redirectErr);
+          setError("Browser blocked the login popup and redirect. Please enable popups or redirects in your browser settings.");
+        }
       } else if (err?.code === 'auth/popup-closed-by-user') {
         setError("Login popup was closed before completion.");
       } else {

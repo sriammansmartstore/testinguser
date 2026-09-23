@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { GoogleAuthProvider, signInWithPopup, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import './SignupPage.css';
@@ -123,10 +123,34 @@ const SignupPage = () => {
     }
   };
 
+  useEffect(() => {
+    let isMounted = true;
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (isMounted && result && result.user) {
+          const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
+          await setDoc(doc(db, "users", userDocId), {
+            email: result.user.email,
+            uid: result.user.uid,
+            userId: userDocId,
+            fullName: result.user.displayName,
+          }, { merge: true });
+          navigate("/userdata");
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect signup error:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleGoogleSignup = async () => {
     setError("");
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
       await setDoc(doc(db, "users", userDocId), {
@@ -141,7 +165,13 @@ const SignupPage = () => {
       if (err?.code === 'auth/unauthorized-domain') {
         setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
       } else if (err?.code === 'auth/popup-blocked') {
-        setError("Browser blocked the signup popup! Please click the popup icon in your browser URL bar, choose 'Always allow popups', and try again.");
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectErr) {
+          console.error("Redirect fallback error:", redirectErr);
+          setError("Browser blocked the signup popup and redirect. Please enable popups or redirects in your browser settings.");
+        }
       } else if (err?.code === 'auth/popup-closed-by-user') {
         setError("Signup popup was closed before completion.");
       } else {
