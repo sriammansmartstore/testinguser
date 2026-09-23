@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Typography, CircularProgress, Box, IconButton } from "@mui/material";
 import RefreshIcon from "@mui/icons-material/Refresh";
+import { useLanguage } from "../context/LanguageContext";
 
 const LocationDetectionWidget = ({ onLocationDetected, deliverableState = null }) => {
+  const { t } = useLanguage();
   const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -293,7 +295,7 @@ const LocationDetectionWidget = ({ onLocationDetected, deliverableState = null }
         >
           {loading ? (
             <>
-              <CircularProgress size={14} sx={{ verticalAlign: "middle", mr: 1 }} /> Detecting your area...
+              <CircularProgress size={14} sx={{ verticalAlign: "middle", mr: 1 }} /> {t('detectingArea', 'Detecting your area...')}
             </>
           ) : error ? (
             error
@@ -326,7 +328,7 @@ const LocationDetectionWidget = ({ onLocationDetected, deliverableState = null }
             mb: 0.5
           }}
         >
-          {deliverableState ? 'Delivery available in your area' : 'Sorry, delivery not available in your area'}
+          {deliverableState ? t('deliveryAvailable', 'Delivery available in your area') : t('deliveryNotAvailable', 'Sorry, delivery not available in your area')}
         </Typography>
       )}
     </div>

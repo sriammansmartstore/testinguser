@@ -27,8 +27,10 @@ import {
 } from 'firebase/firestore';
 import { AuthContext } from '../../context/AuthContext';
 import { useContext } from 'react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const OrderSummaryCard = ({ summary, onUpdateCart }) => {
+  const { t, getProductName } = useLanguage();
   const items = summary?.items || [];
   
   // Debug: Log the items when they change
@@ -299,10 +301,12 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
     }}>
       <CardContent sx={{ py: 1.25, px: { xs: 2, sm: 3 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: 0.2, fontSize: { xs: '1rem', sm: '1.05rem' } }}>Order Summary</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 800, letterSpacing: 0.2, fontSize: { xs: '1rem', sm: '1.05rem' } }}>
+            {t('orderSummary', 'Order Summary')}
+          </Typography>
           <Stack direction="row" spacing={1}>
             {savings > 0 && (
-              <Chip size="small" variant="outlined" color="success" label={`You save ${savedPercentage}%`} sx={{ fontWeight: 700 }} />
+              <Chip size="small" variant="outlined" color="success" label={`${t('youSave', 'You save')} ${savedPercentage}%`} sx={{ fontWeight: 700 }} />
             )}
           </Stack>
         </Box>
@@ -347,7 +351,7 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
                       textOverflow: 'ellipsis',
                     }}
                   >
-                    {item.name}
+                    {getProductName(item)}
                   </Typography>
                   
                   {(item.unitSize && item.unit) && (
@@ -434,12 +438,12 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6)'
         }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.6 }}>
-            <Typography sx={{ textDecoration: 'line-through',fontWeight: 600, color: 'grey.700', letterSpacing: 0.2 }}>Total</Typography>
+            <Typography sx={{ textDecoration: 'line-through',fontWeight: 600, color: 'grey.700', letterSpacing: 0.2 }}>{t('total', 'Total')}</Typography>
             <Typography sx={{ textDecoration: 'line-through', color: 'grey.700', fontWeight: 600 }}>{fmt(mrpTotal)}</Typography>
           </Box>
           {savings > 0 && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.8 }}>
-              <Typography sx={{ fontWeight: 800, color: 'success.dark', letterSpacing: 0.2 }}>You Save</Typography>
+              <Typography sx={{ fontWeight: 800, color: 'success.dark', letterSpacing: 0.2 }}>{t('youSave', 'You Save')}</Typography>
               <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
                 <Chip size="small" color="success" variant="filled" label={`${savedPercentage}%`} sx={{ fontWeight: 800 }} />
                 <Typography color="success.main" sx={{ fontWeight: 900 }}>{fmt(savings)}</Typography>
@@ -447,14 +451,14 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
             </Box>
           )}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <Typography sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: 0.2, fontSize: { xs: '1rem', sm: '1.05rem' } }}>Subtotal</Typography>
+            <Typography sx={{ fontWeight: 900, color: 'text.primary', letterSpacing: 0.2, fontSize: { xs: '1rem', sm: '1.05rem' } }}>{t('subtotal', 'Subtotal')}</Typography>
             <Typography sx={{ fontWeight: 900, color: 'text.primary', fontSize: { xs: '1.05rem', sm: '1.15rem' } }}>{fmt(subTotal)}</Typography>
           </Box>
           {!summary?.promo && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.6 }}>
-              <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>Delivery ({deliveryOption === 'standard' ? 'Standard' : 'Express'})</Typography>
+              <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('deliveryCharge', 'Delivery')} ({deliveryOption === 'standard' ? t('standardDelivery', 'Standard') : t('expressDelivery', 'Express')})</Typography>
               <Typography sx={{ fontWeight: 800, color: deliveryCharge === 0 ? 'success.main' : 'text.primary' }}>
-                {deliveryCharge === 0 ? 'Free' : fmt(deliveryCharge)}
+                {deliveryCharge === 0 ? t('freeDelivery', 'Free') : fmt(deliveryCharge)}
               </Typography>
             </Box>
           )}
@@ -466,7 +470,7 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
             <Box sx={{ mb: 1, p: 1.25, borderRadius: 2, background: 'linear-gradient(90deg,#fff8e1 0%,#ffffff 100%)', border: '1px solid #ffe0b2' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
                 <Box>
-                  <Typography sx={{ fontWeight: 800 }}>Promo Applied</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>{t('promoApplied', 'Promo Applied')}</Typography>
                   <Typography variant="caption" color="text.secondary">{summary.promo.code}</Typography>
                 </Box>
                 <Typography color="success.main" sx={{ fontWeight: 900, fontSize: '1rem' }}>-{fmt(summary.discount || 0)}</Typography>
@@ -474,13 +478,13 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
               <Divider sx={{ my: 0.5 }} />
               {/* Show delivery inside promo card above final total so users see delivery contribution */}
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5, alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>Delivery ({deliveryOption === 'standard' ? 'Standard' : 'Express'})</Typography>
+                <Typography sx={{ fontWeight: 700, color: 'text.secondary' }}>{t('deliveryCharge', 'Delivery')} ({deliveryOption === 'standard' ? t('standardDelivery', 'Standard') : t('expressDelivery', 'Express')})</Typography>
                 <Typography sx={{ fontWeight: 800, color: deliveryCharge === 0 ? 'success.main' : 'text.primary' }}>
-                  {deliveryCharge === 0 ? 'Free' : fmt(deliveryCharge)}
+                  {deliveryCharge === 0 ? t('freeDelivery', 'Free') : fmt(deliveryCharge)}
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 0.5 }}>
-                <Typography sx={{ fontWeight: 800 }}>Total After Discount</Typography>
+                <Typography sx={{ fontWeight: 800 }}>{t('totalAfterDiscount', 'Total After Discount')}</Typography>
                 <Typography sx={{ fontWeight: 900, color: 'primary.main' }}>{fmt((Number(summary.total ?? 0) + Number(deliveryCharge || 0)))}</Typography>
               </Box>
             </Box>
@@ -488,7 +492,7 @@ const OrderSummaryCard = ({ summary, onUpdateCart }) => {
 
           {!summary?.promo && (
             <Box sx={{ mb: 1, display: 'flex', justifyContent: 'space-between' }}>
-              <Typography sx={{ fontWeight: 900, color: 'text.primary' }}>Final Total</Typography>
+              <Typography sx={{ fontWeight: 900, color: 'text.primary' }}>{t('finalTotal', 'Final Total')}</Typography>
               <Typography sx={{ fontWeight: 900, color: 'primary.main' }}>{fmt(subTotal + deliveryCharge)}</Typography>
             </Box>
           )}

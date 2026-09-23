@@ -15,8 +15,10 @@ import DeliveryAddressCard from "../checkout/components/DeliveryAddressCard";
 import PromoCodeCard from "../checkout/components/PromoCodeCard";
 import { useCheckoutData } from "../hooks/useCheckoutData";
 import { calculateOrderSummary } from "../utils/orderUtils";
+import { useLanguage } from "../context/LanguageContext";
 
 const CartPage = () => {
+  const { t } = useLanguage();
   const { user } = useContext(AuthContext);
   const { notify } = useNotification() || { notify: () => {} };
   const [selectedAddressId, setSelectedAddressId] = useState("");
@@ -273,7 +275,7 @@ const CartPage = () => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <ReceiptLongIcon color="primary" sx={{ fontSize: 20 }} />
                   <MuiTypography variant="subtitle2" fontWeight={700}>
-                    Claim GST
+                    {t('claimGstShort', 'Claim GST')}
                   </MuiTypography>
                 </Box>
                 <Box>
@@ -281,14 +283,14 @@ const CartPage = () => {
                 </Box>
               </Box>
               <MuiTypography variant="caption" color="text.secondary" mb={0.5} sx={{ display: 'block' }}>
-                Add GST details for invoice
+                {t('claimGstDesc', 'Add GST details for invoice')}
               </MuiTypography>
             {claimGST && (
               <Box sx={{ mt: 0.5, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1.5 }}>
                 {claimGST && (
                   <Box sx={{ mt: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1 }}>
                     <TextField
-                      label="GST Number"
+                      label={t('gstNumber', 'GST Number')}
                       name="gstNumber"
                       value={gstForm.gstNumber}
                       onChange={handleGSTInputChange}
@@ -298,7 +300,7 @@ const CartPage = () => {
                       sx={{ flex: 1 }}
                     />
                     <TextField
-                      label="Business Name"
+                      label={t('businessName', 'Business Name')}
                       name="businessName"
                       value={gstForm.businessName}
                       onChange={handleGSTInputChange}
@@ -311,7 +313,7 @@ const CartPage = () => {
                 )}
                 {claimGST && (
                   <TextField
-                    label="Business Address"
+                    label={t('businessAddress', 'Business Address')}
                     name="businessAddress"
                     value={gstForm.businessAddress}
                     onChange={handleGSTInputChange}
@@ -329,7 +331,7 @@ const CartPage = () => {
                     disabled={gstSaveLoading}
                     sx={{ mt: 0.5, borderRadius: 1.5, fontWeight: 600, px: 2, py: 0.5, fontSize: '0.8rem' }}
                   >
-                    {gstSaveLoading ? <CircularProgress size={14} /> : 'Save'}
+                    {gstSaveLoading ? <CircularProgress size={14} /> : t('save', 'Save')}
                   </Button>
                 )}
               </Box>
@@ -377,7 +379,7 @@ const CartPage = () => {
             {loading ? (
               <CircularProgress size={24} color="inherit" />
             ) : (
-              `Proceed to Pay ${Number(finalAmount || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}`
+              `${t('proceedToPay', 'Proceed to Pay')} ${Number(finalAmount || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}`
             )}
           </Button>
         </Box>

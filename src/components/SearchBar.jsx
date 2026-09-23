@@ -11,14 +11,17 @@ import MicIcon from '@mui/icons-material/Mic';
 import SearchIcon from '@mui/icons-material/Search';
 import useSearch from '../hooks/useSearch';
 import SearchSuggestions from './SearchSuggestions';
+import { useLanguage } from '../context/LanguageContext';
 
 const SearchBar = ({ 
   value = "", 
   onChange, 
-  placeholder = "Search products...",
+  placeholder,
   onSuggestionSelect,
   sx = {}
 }) => {
+  const { t } = useLanguage();
+  const effectivePlaceholder = placeholder || t('searchPlaceholder') || "Search products...";
   const [listening, setListening] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef(null);
@@ -136,7 +139,7 @@ const SearchBar = ({
         fullWidth
         variant="outlined"
         size="small"
-        placeholder={placeholder}
+        placeholder={effectivePlaceholder}
         value={value}
         onChange={(e) => {
           onChange(e.target.value);

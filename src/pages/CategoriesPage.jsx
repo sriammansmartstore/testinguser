@@ -20,16 +20,17 @@ import { collection, getDocs, query, where, orderBy, doc } from 'firebase/firest
 
 
 
-// Import shared ProductCard component
 import ProductCard from '../components/ProductCard';
 import SearchBar from '../components/SearchBar';
 import SortFilterBar from '../components/SortFilterBar';
 import BottomNavbar from '../components/BottomNavbar';
+import { useLanguage } from '../context/LanguageContext';
 // (Removed unused inline SortFilterBar/SearchBar)
 
 // --- MAIN CATEGORIES PAGE COMPONENT ---
 
 const CategoriesPage = () => {
+  const { t, getCategoryName } = useLanguage();
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -842,7 +843,7 @@ const CategoriesPage = () => {
             <SearchBar 
               value={search} 
               onChange={setSearch} 
-              placeholder="Search in all categories..."
+              placeholder={t('searchCategoriesPlaceholder', 'Search in all categories...')}
               onSuggestionSelect={(item, type) => {
                 if (type === 'product') {
                   navigate(`/product/${item.category}/${item.id}`);
@@ -877,7 +878,7 @@ const CategoriesPage = () => {
                       <CategoryIcon fontSize="small" />
                     </Avatar>
                     <Typography variant="caption" className="category-name">
-                      {cat.name}
+                      {getCategoryName(cat.name || cat.id)}
                     </Typography>
                   </ListItemButton>
                 ))
@@ -896,7 +897,7 @@ const CategoriesPage = () => {
                 {Array.from(new Array(8)).map((_, i) => <Skeleton key={i} variant="rectangular" height={220} />)}
               </div>
               ) : categoriesWithProducts.length === 0 ? (
-              <Typography sx={{ p: 2, textAlign: 'center' }}>No categories found</Typography>
+              <Typography sx={{ p: 2, textAlign: 'center' }}>{t('noCategoriesFound', 'No categories found')}</Typography>
             ) : (
               categoriesWithProducts.map((category) => {
                 const products = renderProductsByCat.get(category.id) || renderProductsByCat.get(category.name) || renderProductsByCat.get(String(category.id)) || [];
@@ -910,7 +911,7 @@ const CategoriesPage = () => {
                       ref={(el) => { if (el) categoryTitleRefs.current.set(category.id, el); else categoryTitleRefs.current.delete(category.id); }}
                       data-category-id={category.id}
                     >
-                      {category.name}
+                      {getCategoryName(category.name || category.id)}
                     </Typography>
                     <div className="products-grid">
                       {processedProducts.map(product => (

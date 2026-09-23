@@ -20,11 +20,10 @@ import { animateAddToCart } from "../animations/AddToCartAnimation";
 import AuthRequiredPrompt from "../components/AuthRequiredPrompt";
 
 const ProductDetailsPage = () => {
-  const { language } = useLanguage();
-  // Product name is preserved in English per configuration
+  const { language, t, getProductName } = useLanguage();
   const getDisplayName = () => {
     if (!product) return '';
-    return product.name || '';
+    return getProductName(product);
   };
   // wishlist state moved into WishlistWidget
   const { category, id } = useParams();

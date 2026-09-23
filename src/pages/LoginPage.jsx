@@ -5,6 +5,7 @@ import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectRes
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { ensureUserDocId } from "../utils/userUtils";
+import { useLanguage } from "../context/LanguageContext";
 import './LoginPage.css';
 
 // Modern Google 'G' mark as inline SVG to keep crisp rendering
@@ -18,6 +19,7 @@ const GoogleGIcon = ({ className }) => (
 );
 
 const LoginPage = () => {
+  const { t } = useLanguage();
   const [countryCode, setCountryCode] = useState("+91");
   const [number, setNumber] = useState("");
   const [otp, setOtp] = useState("");
@@ -253,13 +255,13 @@ const LoginPage = () => {
   return (
     <Box className="login-root">
       <Box className="login-box" sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        <Typography variant="h5" className="login-title">Welcome Back</Typography>
+        <Typography variant="h5" className="login-title">{t('welcomeBack', 'Welcome Back')}</Typography>
         {(error || info) && (
           <Alert severity={error ? 'error' : 'info'} sx={{ mb: 2 }}>{error || info}</Alert>
         )}
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
-            label="Code"
+            label={t('countryCode', 'Code')}
             value={countryCode}
             onChange={e => setCountryCode(e.target.value)}
             size="small"
@@ -271,8 +273,8 @@ const LoginPage = () => {
             disabled={otpSent}
           />
           <TextField 
-            label="Phone Number" 
-            placeholder="Enter your phone number" 
+            label={t('phoneLabel', 'Phone Number')} 
+            placeholder={t('phonePlaceholder', 'Enter your phone number')} 
             variant="outlined" 
             fullWidth 
             size="small"
@@ -284,16 +286,16 @@ const LoginPage = () => {
           />
         </Box>
         {otpSent && (
-          <TextField label="Enter OTP" placeholder="6-digit code" variant="outlined" fullWidth margin="normal" value={otp} onChange={e => setOtp(e.target.value)} inputProps={{ maxLength: 6 }} />
+          <TextField label={t('enterOtp', 'Enter OTP')} placeholder={t('sixDigitCode', '6-digit code')} variant="outlined" fullWidth margin="normal" value={otp} onChange={e => setOtp(e.target.value)} inputProps={{ maxLength: 6 }} />
         )}
         {!otpSent ? (
           <Button variant="contained" className="login-btn" fullWidth onClick={sendOtp} disabled={sending}>
-            {sending ? <><CircularProgress size={20} sx={{ mr: 1 }} /> Sending...</> : 'Send OTP'}
+            {sending ? <><CircularProgress size={20} sx={{ mr: 1 }} /> {t('sendingOtp', 'Sending...')}</> : t('sendOtp', 'Send OTP')}
           </Button>
         ) : (
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-            <Button variant="contained" className="login-btn" fullWidth onClick={verifyOtpAndLogin} disabled={verifying || !otp}>{verifying ? <CircularProgress size={20} /> : 'Verify & Login'}</Button>
-            <Button variant="outlined" onClick={handleResendOtp} disabled={!resendActive}>{resendActive ? 'Resend OTP' : `Resend (${resendTimer}s)`}</Button>
+            <Button variant="contained" className="login-btn" fullWidth onClick={verifyOtpAndLogin} disabled={verifying || !otp}>{verifying ? <CircularProgress size={20} /> : t('verifyLogin', 'Verify & Login')}</Button>
+            <Button variant="outlined" onClick={handleResendOtp} disabled={!resendActive}>{resendActive ? t('resendOtp', 'Resend OTP') : `${t('resendOtp', 'Resend')} (${resendTimer}s)`}</Button>
           </Box>
         )}
         <Box id="recaptcha-container-login" />
@@ -313,7 +315,7 @@ const LoginPage = () => {
             </Box>
           )}
           <Box sx={{ textTransform: 'none', fontWeight: 700 }}>
-            {googleLoading ? "Signing in..." : "Login with Google"}
+            {googleLoading ? (t('sendingOtp', 'Signing in...')) : t('loginWithGoogle', 'Login with Google')}
           </Box>
         </Button>
         <Button
@@ -322,9 +324,9 @@ const LoginPage = () => {
           onClick={handleDirectGoogleRedirect}
           sx={{ textTransform: 'none', color: '#666', fontSize: '0.78rem', mt: 0.5 }}
         >
-          Trouble with popup? Click for direct redirect
+          {t('troubleWithPopup', 'Trouble with popup? Click for direct redirect')}
         </Button>
-        <Typography className="switch-link" onClick={() => navigate("/signup")}>Don't have an account? Sign Up</Typography>
+        <Typography className="switch-link" onClick={() => navigate("/signup")}>{t('dontHaveAccount', "Don't have an account? Sign Up")}</Typography>
       </Box>
     </Box>
   );

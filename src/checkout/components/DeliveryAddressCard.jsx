@@ -23,8 +23,10 @@ import { useNotification } from '../../components/NotificationProvider';
 import DeliveryOptionsCard from './DeliveryOptionsCard';
 import { doc, collection, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
+import { useLanguage } from '../../context/LanguageContext';
 
 const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, onSelectAddress, onAddNewAddress, loading, onAddressAdded, orderTotal }) => {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { notify } = useNotification() || { notify: () => {} };
   const [locationLoading, setLocationLoading] = useState(false);
@@ -116,7 +118,7 @@ const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, on
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
           <Box display="flex" alignItems="center">
             <LocationOnIcon sx={{ mr: 1, color: 'primary.main' }} />
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>Delivery Addresses</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>{t('deliveryAddresses', 'Delivery Addresses')}</Typography>
           </Box>
           <IconButton aria-label="add address" size="small" onClick={handleAddNewAddress} sx={{ bgcolor: 'action.hover' }}>
             <AddIcon fontSize="small" />
@@ -127,16 +129,16 @@ const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, on
           <Box display="flex" justifyContent="center" py={2}><CircularProgress size={24} /></Box>
         ) : addresses.length === 0 ? (
           <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }}>
-            No addresses found. Tap the plus button above to add one.
+            {t('noAddressesSaved', 'No addresses found. Tap the plus button above to add one.')}
           </Alert>
         ) : (
           <Box>
             <FormControl fullWidth sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}>
-              <InputLabel id="address-select-label">Select Delivery Address</InputLabel>
+              <InputLabel id="address-select-label">{t('selectDeliveryAddress', 'Select Delivery Address')}</InputLabel>
               <Select
                 labelId="address-select-label"
                 value={selectedAddressId}
-                label="Select Delivery Address"
+                label={t('selectDeliveryAddress', 'Select Delivery Address')}
                 onChange={(e) => {
                   if (typeof onSelectAddress === 'function') {
                     onSelectAddress(e.target.value);

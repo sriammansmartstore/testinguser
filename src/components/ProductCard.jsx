@@ -53,10 +53,9 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const { user } = useContext(AuthContext);
   // cart state awareness
   // Language context for product name display
-  const { language } = useLanguage();
-  // Product name is preserved in English per configuration
+  const { language, t, getProductName } = useLanguage();
   const getDisplayName = () => {
-    return product.name || '';
+    return getProductName(product);
   };
   const [inCartAnyVariant, setInCartAnyVariant] = useState(false);
   const [hasCurrentVariantInCart, setHasCurrentVariantInCart] = useState(false);
@@ -450,7 +449,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
               disabled={product.outOfStock}
               sx={{ height: 40, minHeight: 40, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
             >
-              {hasCurrentVariantInCart ? 'Go to Cart' : 'Add'}
+              {hasCurrentVariantInCart ? (t('cart') ? `${t('cart')}` : 'Go to Cart') : (t('addToCart') || 'Add')}
             </Button>
           )
         )}
@@ -498,7 +497,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
         )}
       {/* Options Dialog for products with multiple options */}
       <Dialog open={showOptionsDialog} onClose={() => setShowOptionsDialog(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', pb: 1 }}>Choose Option</DialogTitle>
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 700, fontSize: '1.1rem', pb: 1 }}>{t('choosePack') || 'Choose Option'}</DialogTitle>
         <DialogContent sx={{ px: 2, py: 1 }}>
           {Array.isArray(product.options) && product.options.length > 1 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -552,7 +551,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           )}
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
-          <Button onClick={() => setShowOptionsDialog(false)} color="inherit" sx={{ borderRadius: 2 }}>Close</Button>
+          <Button onClick={() => setShowOptionsDialog(false)} color="inherit" sx={{ borderRadius: 2 }}>{t('close') || 'Close'}</Button>
         </DialogActions>
       </Dialog>
       {/* Auth Required Dialog here */}

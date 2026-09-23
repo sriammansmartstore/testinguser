@@ -10,6 +10,7 @@ import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import Badge from "@mui/material/Badge";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { db } from "../firebase";
 import { collection, onSnapshot, doc, getDoc } from "firebase/firestore";
 // import useScrollDirection from "../hooks/useScrollDirection";
@@ -18,6 +19,7 @@ const BottomNavbar = () => {
   const [nav, setNav] = useState(0);
   const [cartCount, setCartCount] = useState(0);
   const { user } = useContext(AuthContext) || {};
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const p = location.pathname || '';
@@ -140,22 +142,22 @@ const BottomNavbar = () => {
         }}
       >
       <BottomNavigationAction 
-        label="Home" 
+        label={t('home') || "Home"} 
         icon={<HomeIcon sx={{ color: '#43a047' }} />} 
         onMouseDown={() => window.dispatchEvent(new CustomEvent('clear-search'))}
         onClick={() => navigate("/")}
         sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} 
       />
-      <BottomNavigationAction label="Categories" icon={<CategoryIcon sx={{ color: '#ff9800' }} />} onClick={() => navigate("/categories")} sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
+      <BottomNavigationAction label={t('categories') || "Categories"} icon={<CategoryIcon sx={{ color: '#ff9800' }} />} onClick={() => navigate("/categories")} sx={{ fontFamily: 'Montserrat', fontWeight: 600 }} />
       <BottomNavigationAction
-        label="Search"
+        label={t('search') || "Search"}
         icon={<SearchIcon sx={{ fontSize: 28, color: '#388e3c' }} />}
         onClick={handleSearch}
         sx={{ fontFamily: 'Montserrat', fontWeight: 600, color: '#388e3c' }}
       />
-      <BottomNavigationAction label="Wishlist" icon={<FavoriteIcon sx={{ color: '#e91e63' }} />} onClick={() => navigate("/wishlist")} sx={{ fontFamily: 'Montserrat', fontWeight: 600, pr: 2 }} />
+      <BottomNavigationAction label={t('wishlist') || "Wishlist"} icon={<FavoriteIcon sx={{ color: '#e91e63' }} />} onClick={() => navigate("/wishlist")} sx={{ fontFamily: 'Montserrat', fontWeight: 600, pr: 2 }} />
       <BottomNavigationAction
-        label="Cart"
+        label={t('cart') || "Cart"}
         icon={
           <Badge
             badgeContent={cartCount}

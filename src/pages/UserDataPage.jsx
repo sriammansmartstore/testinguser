@@ -6,8 +6,7 @@ import { db, auth } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
 import { ensureUserDocId } from "../utils/userUtils";
-
-const genders = ["Male", "Female", "Other"];
+import { useLanguage } from "../context/LanguageContext";
 
 const countryCodes = [
   { code: "+91", label: "🇮🇳 +91" },
@@ -19,6 +18,12 @@ const countryCodes = [
 ];
 
 const UserDataPage = ({ editMode = false, onSave }) => {
+  const { t } = useLanguage();
+  const genders = [
+    { value: "Male", label: t("male", "Male") },
+    { value: "Female", label: t("female", "Female") },
+    { value: "Other", label: t("other", "Other") }
+  ];
   const { user, userDetails } = useContext(AuthContext);
   const [fullName, setFullName] = useState("");
   const [countryCode, setCountryCode] = useState("+91");
@@ -279,13 +284,13 @@ const UserDataPage = ({ editMode = false, onSave }) => {
 
   return (
     <Box sx={{ maxWidth: 400, mx: "auto", mt: 0, p: 3, background: "#fff", borderRadius: 4, boxShadow: '0 4px 16px rgba(67,160,71,0.10)' }}>
-      <Typography variant="h5" color="primary" fontWeight={700} mb={2}>{editMode ? "Edit Account Details" : "Complete Your Profile"}</Typography>
-      <TextField label="Full Name" variant="outlined" fullWidth margin="normal" value={fullName} onChange={e => setFullName(e.target.value)} />
+      <Typography variant="h5" color="primary" fontWeight={700} mb={2}>{editMode ? t('editAccountDetails', "Edit Account Details") : t('completeProfile', "Complete Your Profile")}</Typography>
+      <TextField label={t('fullName', 'Full Name')} variant="outlined" fullWidth margin="normal" value={fullName} onChange={e => setFullName(e.target.value)} />
 
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1, mb: 1 }}>
         <TextField
           select
-          label="Code"
+          label={t('countryCode', 'Code')}
           value={countryCode}
           onChange={e => setCountryCode(e.target.value)}
           sx={{ minWidth: 100 }}
@@ -295,7 +300,7 @@ const UserDataPage = ({ editMode = false, onSave }) => {
           ))}
         </TextField>
         <TextField
-          label="Phone Number"
+          label={t('phoneLabel', 'Phone Number')}
           variant="outlined"
           fullWidth
           value={number}
@@ -309,13 +314,13 @@ const UserDataPage = ({ editMode = false, onSave }) => {
         <Box>
           {otpSent && (
             <TextField
-              label="Enter OTP"
+              label={t('enterOtp', 'Enter OTP')}
               value={otp}
               onChange={e => setOtp(e.target.value)}
               fullWidth
               variant="outlined"
               disabled={verifying || phoneVerified}
-              placeholder="Enter 6-digit OTP"
+              placeholder={t('enterOtp', 'Enter 6-digit OTP')}
               inputProps={{ maxLength: 6 }}
               sx={{ mb: 2 }}
             />
@@ -328,7 +333,7 @@ const UserDataPage = ({ editMode = false, onSave }) => {
                 onClick={sendOtp}
                 disabled={loading || !number || phoneVerified}
               >
-                {loading ? <CircularProgress size={20} /> : 'Send OTP'}
+                {loading ? <CircularProgress size={20} /> : t('sendOtp', 'Send OTP')}
               </Button>
             ) : (
               <>
@@ -337,14 +342,14 @@ const UserDataPage = ({ editMode = false, onSave }) => {
                   onClick={verifyOtp}
                   disabled={verifying || !otp || phoneVerified}
                 >
-                  {verifying ? <CircularProgress size={20} /> : 'Verify OTP'}
+                  {verifying ? <CircularProgress size={20} /> : t('verifyLogin', 'Verify OTP')}
                 </Button>
                 <Button
                   variant="outlined"
                   onClick={handleResendOtp}
                   disabled={!resendActive}
                 >
-                  {resendActive ? 'Resend OTP' : `Resend OTP (${resendTimer}s)`}
+                  {resendActive ? t('resendOtp', 'Resend OTP') : `${t('resendOtp', 'Resend OTP')} (${resendTimer}s)`}
                 </Button>
               </>
             )}
@@ -356,26 +361,26 @@ const UserDataPage = ({ editMode = false, onSave }) => {
         <Alert severity={inlineMessage.type} sx={{ mt: 2 }}>{inlineMessage.text}</Alert>
       )}
       {phoneVerified && (
-        <Alert severity="success" sx={{ mt: 2 }}>Phone number verified!</Alert>
+        <Alert severity="success" sx={{ mt: 2 }}>{t('phoneVerified', 'Phone number verified!')}</Alert>
       )}
       {/* Referral Code (optional) */}
       <TextField
-        label="Referral Code (optional)"
+        label={t('referralCodeOptional', 'Referral Code (optional)')}
         variant="outlined"
         fullWidth
         margin="normal"
         value={referralCode}
         onChange={e => setReferralCode(e.target.value.replace(/\s/g,'').toUpperCase())}
         placeholder="Enter code like SASS0000001"
-        helperText="Enter the referral code of the person who invited you"
+        helperText={t('referralCodeHelper', 'Enter the referral code of the person who invited you')}
         disabled={Boolean(userDetails?.referredBy)}
       />
-      <TextField select label="Gender" variant="outlined" fullWidth margin="normal" value={gender} onChange={e => setGender(e.target.value)}>
-        {genders.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
+      <TextField select label={t('gender', 'Gender')} variant="outlined" fullWidth margin="normal" value={gender} onChange={e => setGender(e.target.value)}>
+        {genders.map(g => <MenuItem key={g.value} value={g.value}>{g.label}</MenuItem>)}
       </TextField>
-      <TextField label="Date of Birth" type="date" variant="outlined" fullWidth margin="normal" value={dob} onChange={e => setDob(e.target.value)} InputLabelProps={{ shrink: true }} />
-      <Button variant="contained" color="primary" fullWidth sx={{ mt: 2 }} onClick={handleSubmit}>{editMode ? "Save Changes" : "Save & Continue"}</Button>
-      {success && <Typography color="success.main" mt={2} align="center">Profile updated successfully!</Typography>}
+      <TextField label={t('dateOfBirth', 'Date of Birth')} type="date" variant="outlined" fullWidth margin="normal" value={dob} onChange={e => setDob(e.target.value)} InputLabelProps={{ shrink: true }} />
+      <Button variant="contained" color="primary" fullWidth sx={{ mt: 2 }} onClick={handleSubmit}>{editMode ? t('saveChanges', "Save Changes") : t('saveAndContinue', "Save & Continue")}</Button>
+      {success && <Typography color="success.main" mt={2} align="center">{t('profileUpdatedSuccess', 'Profile updated successfully!')}</Typography>}
     </Box>
   );
 };

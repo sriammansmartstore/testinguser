@@ -12,8 +12,10 @@ import {
 import LocalOfferIcon from '@mui/icons-material/LocalOffer';
 import CloseIcon from '@mui/icons-material/Close';
 import { fetchPromoByCode } from '../../utils/promoService';
+import { useLanguage } from '../../context/LanguageContext';
 
 const PromoCodeCard = ({ onApplyPromo }) => {
+  const { t } = useLanguage();
   const [promoCode, setPromoCode] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [error, setError] = useState('');
@@ -73,7 +75,7 @@ const PromoCodeCard = ({ onApplyPromo }) => {
           <Box display="flex" alignItems="center">
             <LocalOfferIcon color="primary" sx={{ mr: 1.5 }} />
             <Box>
-              <Typography variant="subtitle2" color="text.secondary">Promo Code Applied</Typography>
+              <Typography variant="subtitle2" color="text.secondary">{t('promoApplied', 'Promo Code Applied')}</Typography>
               <Typography variant="body1" fontWeight={600}>
                 {appliedPromo}
               </Typography>
@@ -93,7 +95,7 @@ const PromoCodeCard = ({ onApplyPromo }) => {
               minWidth: 0
             }}
           >
-            Remove
+            {t('remove', 'Remove')}
           </Button>
         </Box>
       ) : (
@@ -107,7 +109,7 @@ const PromoCodeCard = ({ onApplyPromo }) => {
             <Box display="flex" alignItems="center">
               <LocalOfferIcon color="primary" sx={{ mr: 1.5 }} />
               <Typography variant="subtitle1" fontWeight={500}>
-                Have a promo code?
+                {t('havePromoCode', 'Have a promo code?')}
               </Typography>
             </Box>
           </Box>
@@ -116,7 +118,7 @@ const PromoCodeCard = ({ onApplyPromo }) => {
             <TextField
               fullWidth
               size="small"
-              placeholder="Enter promo code"
+              placeholder={t('enterPromoCode', 'Enter promo code')}
               value={promoCode}
               onChange={(e) => setPromoCode(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleApply()}
@@ -161,7 +163,7 @@ const PromoCodeCard = ({ onApplyPromo }) => {
                 },
               }}
             >
-              Apply
+              {t('apply', 'Apply')}
             </Button>
           </Box>
           

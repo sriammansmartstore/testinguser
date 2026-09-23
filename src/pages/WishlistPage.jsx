@@ -8,8 +8,10 @@ import { useNavigate } from "react-router-dom";
 import { db } from "../firebase";
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { AuthContext } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const WishlistPage = () => {
+  const { t } = useLanguage();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [wishlists, setWishlists] = useState([]);
@@ -89,21 +91,21 @@ const WishlistPage = () => {
     return (
       <Box sx={{ p: { xs: 2, sm: 4 }, maxWidth: 980, mx: 'auto' }}>
         <Box display="flex" alignItems="center" mb={3}>
-          <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>Your Wishlists</Typography>
+          <Typography variant="h5" sx={{ flex: 1, fontWeight: 700 }}>{t('yourWishlists', 'Your Wishlists')}</Typography>
         </Box>
         <Card sx={{ borderRadius: 2, boxShadow: 2, textAlign: 'center', py: 4 }}>
           <CardContent>
             <FavoriteBorderIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>Sign in to view your wishlists</Typography>
+            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>{t('signInToViewWishlists', 'Sign in to view your wishlists')}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Please log in to access your saved wishlists and favorite items.
+              {t('wishlistLoginPrompt', 'Please log in to access your saved wishlists and favorite items.')}
             </Typography>
             <Button 
               variant="contained" 
               onClick={() => navigate('/login')}
               sx={{ fontWeight: 600, borderRadius: 2, px: 4, py: 1.5 }}
             >
-              Sign In
+              {t('login', 'Sign In')}
             </Button>
           </CardContent>
         </Card>
@@ -114,7 +116,7 @@ const WishlistPage = () => {
   return (
     <Box sx={{ px: { xs: 1.5, md: 3 }, py: 3, maxWidth: 980, mx: 'auto', minHeight: '100vh', backgroundColor: 'background.paper' }}>
       <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>Your Wishlists</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>{t('yourWishlists', 'Your Wishlists')}</Typography>
         {!loading && wishlists.length > 0 && (
           <Chip 
             label={`${wishlists.length} list${wishlists.length > 1 ? 's' : ''}`} 

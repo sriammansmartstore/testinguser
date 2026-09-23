@@ -1,19 +1,7 @@
 import React, { useState } from "react";
 import { Box, Button, Slider, Typography, Checkbox, FormControlLabel, Chip, Stack } from "@mui/material";
 import { KeyboardArrowDown as KeyboardArrowDownIcon } from '@mui/icons-material';
-
-const SORT_OPTIONS = [
-  { value: "priceLowHigh", label: "Price: Low to High" },
-  { value: "priceHighLow", label: "Price: High to Low" },
-  { value: "newest", label: "Newest First" },
-  { value: "oldest", label: "Oldest First" },
-  { value: "nameAZ", label: "Name: A to Z" },
-  { value: "nameZA", label: "Name: Z to A" },
-  { value: "discount", label: "Highest Discount" },
-  { value: "rating", label: "Top Rated" },
-  { value: "popularity", label: "Most Popular" },
-  { value: "featured", label: "Featured" },
-];
+import { useLanguage } from "../context/LanguageContext";
 
 export default function SortFilterBar({
   sort, setSort,
@@ -25,8 +13,22 @@ export default function SortFilterBar({
   onApply,
   compact = false,
 }) {
+  const { t } = useLanguage();
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  const sortOptions = [
+    { value: "priceLowHigh", label: t("priceLowHigh", "Price: Low to High") },
+    { value: "priceHighLow", label: t("priceHighLow", "Price: High to Low") },
+    { value: "newest", label: t("newestFirst", "Newest First") },
+    { value: "oldest", label: t("oldestFirst", "Oldest First") },
+    { value: "nameAZ", label: t("nameAZ", "Name: A to Z") },
+    { value: "nameZA", label: t("nameZA", "Name: Z to A") },
+    { value: "discount", label: t("highestDiscount", "Highest Discount") },
+    { value: "rating", label: t("topRated", "Top Rated") },
+    { value: "popularity", label: t("mostPopular", "Most Popular") },
+    { value: "featured", label: t("featured", "Featured") },
+  ];
   
   const handleSortClose = () => setIsSortOpen(false);
   const handleFilterClose = () => setIsFilterOpen(false);
@@ -97,7 +99,7 @@ export default function SortFilterBar({
               '&:hover': { bgcolor: '#154a19' }
             }}
           >
-            Sort
+            {t("sort", "Sort")}
           </Button>
           
           {/* Filter Button - Right Side (legacy style) */}
@@ -118,7 +120,7 @@ export default function SortFilterBar({
               '&:hover': { bgcolor: '#27692a' }
             }}
           >
-            Filter
+            {t("filter", "Filter")}
           </Button>
         </Box>
 
@@ -159,7 +161,7 @@ export default function SortFilterBar({
               borderBottom: '1px solid #eee',
               px: 1.25
             }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Sort</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{t("sort", "Sort")}</Typography>
               <Button 
                 size="small"
                 onClick={handleSortClose}
@@ -191,12 +193,12 @@ export default function SortFilterBar({
                   color: 'error.main'
                 }}
               >
-                Clear
+                {t("clearAll", "Clear")}
               </Button>
             </Box>
             <Box sx={{ overflowY: 'auto', maxHeight: 'calc(24vh - 36px)', pr: 0.25 }}>
             <Stack direction="column" spacing={0.75}>
-              {SORT_OPTIONS.map(opt => (
+              {sortOptions.map(opt => (
                 <Button
                   key={opt.value}
                   size="small"
@@ -264,7 +266,7 @@ export default function SortFilterBar({
               px: 1.25
             }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                Filters{activeCount > 0 ? ` (${activeCount})` : ''}
+                {t("filter", "Filters")}{activeCount > 0 ? ` (${activeCount})` : ''}
               </Typography>
               <Button 
                 size="small"
@@ -297,7 +299,7 @@ export default function SortFilterBar({
                   color: 'error.main'
                 }}
               >
-                Clear
+                {t("clearAll", "Clear")}
               </Button>
             </Box>
             
@@ -306,7 +308,7 @@ export default function SortFilterBar({
               {/* Price Range Filter */}
               <Box sx={{ p: 1.25, bgcolor: 'rgba(76, 175, 80, 0.05)', borderRadius: 2, border: '1px solid rgba(76, 175, 80, 0.2)' }}>
                 <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600, color: '#333' }}>
-                  Price Range
+                  {t("priceRange", "Price Range")}
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography variant="caption" sx={{ fontWeight: 500, color: '#4caf50' }}>₹{filters.price[0]}</Typography>
@@ -341,7 +343,7 @@ export default function SortFilterBar({
               {/* Discount Filter */}
               <Box sx={{ p: 1.25, bgcolor: 'rgba(255, 87, 34, 0.05)', borderRadius: 2, border: '1px solid rgba(255, 87, 34, 0.2)' }}>
                 <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600, color: '#333' }}>
-                  Discount Range
+                  {t("discount", "Discount")}
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography variant="caption" sx={{ fontWeight: 500, color: '#ff5722' }}>{filters.discount[0]}%</Typography>
@@ -376,7 +378,7 @@ export default function SortFilterBar({
               {/* Rating Filter */}
               <Box sx={{ p: 1.25, bgcolor: 'rgba(255, 193, 7, 0.05)', borderRadius: 2, border: '1px solid rgba(255, 193, 7, 0.2)' }}>
                 <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600, color: '#333' }}>
-                  Rating Range
+                  {t("topRated", "Rating Range")}
                 </Typography>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                   <Typography variant="caption" sx={{ fontWeight: 500, color: '#ffc107' }}>{filters.rating[0]}★</Typography>
@@ -413,7 +415,7 @@ export default function SortFilterBar({
               {units?.length > 0 && (
                 <Box sx={{ p: 1.25, bgcolor: 'rgba(255, 152, 0, 0.05)', borderRadius: 2, border: '1px solid rgba(255, 152, 0, 0.2)' }}>
                   <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600, color: '#333' }}>
-                    Product Units
+                    {t("units", "Product Units")}
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {units.map(u => (
@@ -444,7 +446,7 @@ export default function SortFilterBar({
               {brands?.length > 0 && (
                 <Box sx={{ p: 1.25, bgcolor: 'rgba(156, 39, 176, 0.05)', borderRadius: 2, border: '1px solid rgba(156, 39, 176, 0.2)' }}>
                   <Typography variant="caption" sx={{ mb: 0.5, fontWeight: 600, color: '#333' }}>
-                    Brands
+                    {t("brands", "Brands")}
                   </Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     {brands.map(b => (
@@ -487,7 +489,7 @@ export default function SortFilterBar({
                   } 
                   label={
                     <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                      Show In Stock Only
+                      {t("availableOnly", "Show In Stock Only")}
                     </Typography>
                   } 
                 />
@@ -496,7 +498,7 @@ export default function SortFilterBar({
             </Box>
 
             <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-              <Button size="small" variant="contained" fullWidth onClick={() => { handleFilterClose(); if (onApply) onApply(); }} sx={{ bgcolor: '#388e3c', py: 0.75 }}>Apply</Button>
+              <Button size="small" variant="contained" fullWidth onClick={() => { handleFilterClose(); if (onApply) onApply(); }} sx={{ bgcolor: '#388e3c', py: 0.75 }}>{t("apply", "Apply")}</Button>
             </Box>
           </Box>
         )}

@@ -16,12 +16,14 @@ import useScrollDirection from "../hooks/useScrollDirection";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 import { useUI } from "../context/UIContext";
+import { useLanguage } from "../context/LanguageContext";
 import './HomePage.css';
 
 const HomePage = () => {
   // Context and hooks
   const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const { t } = useLanguage();
 
   // State management
   const [sort, setSort] = useState("newest");
@@ -539,7 +541,7 @@ const HomePage = () => {
           <SearchBar
             value={search}
             onChange={setSearch}
-            placeholder="Search products and categories..."
+            placeholder={t("searchPlaceholder", "Search products and categories...")}
             onSuggestionSelect={(item, type) => {
               if (type === 'product') {
                 navigate(`/product/${item.category}/${item.id}`);
@@ -570,7 +572,7 @@ const HomePage = () => {
         
         {loading ? (
           <Typography sx={{ p: 2, textAlign: 'center' }}>
-            Loading products...
+            {t("loadingProducts", "Loading products...")}
           </Typography>
         ) : (
           <div className="products-grid">
@@ -582,7 +584,7 @@ const HomePage = () => {
             ))}
             {filteredProducts.length === 0 && !loading && (
               <Typography sx={{ p: 2, textAlign: 'center', width: '100%' }}>
-                No products found matching your criteria.
+                {t("noProductsFound", "No products found matching your criteria.")}
               </Typography>
             )}
           </div>

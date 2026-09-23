@@ -404,15 +404,15 @@ const MyOrdersPage = () => {
 
               <Divider sx={{ my: 2 }} />
 
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Summary</Typography>
-              <Box display="flex" justifyContent="space-between"><Typography variant="body2">Subtotal</Typography><Typography variant="body2">₹{selected.subtotal ?? selected.total ?? selected.amount ?? 0}</Typography></Box>
-              <Box display="flex" justifyContent="space-between"><Typography variant="body2">Delivery</Typography><Typography variant="body2">₹{selected.deliveryFee ?? selected.shipping ?? 0}</Typography></Box>
-              <Box display="flex" justifyContent="space-between" sx={{ mt: 1, fontWeight: 700 }}><Typography variant="body2">Total</Typography><Typography variant="body2">₹{selected.total ?? selected.amount ?? 0}</Typography></Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{t('orderSummary', 'Summary')}</Typography>
+              <Box display="flex" justifyContent="space-between"><Typography variant="body2">{t('subtotal', 'Subtotal')}</Typography><Typography variant="body2">₹{selected.subtotal ?? selected.total ?? selected.amount ?? 0}</Typography></Box>
+              <Box display="flex" justifyContent="space-between"><Typography variant="body2">{t('deliveryCharge', 'Delivery')}</Typography><Typography variant="body2">₹{selected.deliveryFee ?? selected.shipping ?? 0}</Typography></Box>
+              <Box display="flex" justifyContent="space-between" sx={{ mt: 1, fontWeight: 700 }}><Typography variant="body2">{t('total', 'Total')}</Typography><Typography variant="body2">₹{selected.total ?? selected.amount ?? 0}</Typography></Box>
 
               {selected.userProfile && (
                 <>
                   <Divider sx={{ my: 2 }} />
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Shipping Address</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{t('deliveryAddress', 'Shipping Address')}</Typography>
                   <Typography variant="body2">{selected.userProfile.fullName}</Typography>
                   <Typography variant="body2" color="text.secondary">{selected.userProfile.number}</Typography>
                   <Typography variant="body2" color="text.secondary">{selected.userProfile.address || (selected.address && selected.address.street)}</Typography>
@@ -427,7 +427,7 @@ const MyOrdersPage = () => {
                   <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                     <Tooltip title="You can cancel before the order is shipped.">
                       <Button color="error" variant="outlined" size="small" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
-                        Cancel Order
+                        {t('cancelOrder', 'Cancel Order')}
                       </Button>
                     </Tooltip>
                   </Box>
