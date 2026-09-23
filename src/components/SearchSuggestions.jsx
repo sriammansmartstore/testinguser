@@ -13,10 +13,11 @@ import {
 import CategoryIcon from '@mui/icons-material/Category';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import { useNavigate } from 'react-router-dom';
-
+import { useLanguage } from '../context/LanguageContext';
 
 const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
   const navigate = useNavigate();
+  const { t, getProductName, getCategoryName } = useLanguage();
 
   // Navigation is handled by parent via onSelect
 
@@ -45,7 +46,7 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
           }}
         >
           <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-            No matching items found
+            {t('noMatchingItems', 'No matching items found')}
           </Box>
           <Box 
             sx={{ 
@@ -65,7 +66,7 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
                 '&:hover': { textDecoration: 'underline' }
               }}
             >
-              Can't find what you're looking for? Request a product
+              {t('cantFindRequestProduct', "Can't find what you're looking for? Request a product")}
             </Typography>
           </Box>
         </Paper>
@@ -94,7 +95,7 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
       {suggestions.categories.length > 0 && (
         <>
           <Typography variant="subtitle2" sx={{ p: 1, pl: 2, bgcolor: 'grey.100', fontWeight: 600 }}>
-            Categories
+            {t('categories', 'Categories')}
           </Typography>
           <List dense>
             {suggestions.categories.map((category) => (
@@ -111,14 +112,14 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
                 <ListItemAvatar>
                   <Avatar 
                     src={category.imageUrl}
-                    alt={category.name}
+                    alt={getCategoryName(category)}
                     sx={{ bgcolor: 'grey.200' }}
                   >
                     <CategoryIcon />
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText 
-                  primary={category.name}
+                  primary={getCategoryName(category)}
                   primaryTypographyProps={{ fontWeight: 500 }}
                 />
               </ListItem>
@@ -130,7 +131,7 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
       {suggestions.products.length > 0 && (
         <>
           <Typography variant="subtitle2" sx={{ p: 1, pl: 2, bgcolor: 'grey.100', fontWeight: 600 }}>
-            Products
+            {t('products', 'Products')}
           </Typography>
           <List dense>
             {suggestions.products.map((product) => (
@@ -147,7 +148,7 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
                 <ListItemAvatar>
                   <Avatar 
                     src={product.imageUrl} 
-                    alt={product.name}
+                    alt={getProductName(product)}
                     variant="rounded"
                     sx={{ 
                       width: 48,
@@ -159,11 +160,11 @@ const SearchSuggestions = ({ suggestions, onSelect, onClose }) => {
                   </Avatar>
                 </ListItemAvatar>
                 <ListItemText 
-                  primary={product.name}
+                  primary={getProductName(product)}
                   secondary={
                     <Box>
                       <Typography variant="body2" component="span" color="text.secondary">
-                        {product.category}
+                        {getCategoryName(product.category)}
                       </Typography>
                       <Typography 
                         variant="body2" 

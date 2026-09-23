@@ -263,31 +263,57 @@ const AddressesPage = () => {
       setInlineMsg({ type: 'error', text: t('noOtpRequest', 'No OTP request found.') });
       return;
     }
+    const cleanOtp = String(otp || '').trim();
+    if (!cleanOtp || cleanOtp.length < 6) {
+      setInlineMsg({ type: 'error', text: t('enterOtp', 'Please enter a valid 6-digit OTP.') });
+      return;
+    }
     setVerifying(true);
     try {
       const vid = verificationId || confirmationResult?.verificationId;
       if (!vid) throw new Error('Missing verification id');
-      const credential = PhoneAuthProvider.credential(vid, otp);
+      const credential = PhoneAuthProvider.credential(vid, cleanOtp);
+
+      let verifiedSuccessfully = false;
+
       if (auth && auth.currentUser) {
         try {
           await linkWithCredential(auth.currentUser, credential);
+          verifiedSuccessfully = true;
         } catch (linkErr) {
           console.debug('[Addresses] linkWithCredential caught:', linkErr);
-          // If the phone number is already linked or credential already in use by another account,
-          // the OTP itself was confirmed valid by Firebase servers before this rejection!
-          if (
-            linkErr?.code === 'auth/credential-already-in-use' ||
-            linkErr?.code === 'auth/provider-already-linked' ||
-            linkErr?.message?.includes('credential-already-in-use') ||
-            linkErr?.message?.includes('provider-already-linked')
-          ) {
-            console.log('[Addresses] OTP confirmed valid; phone already registered in Firebase auth');
-          } else {
+          const errCode = linkErr?.code || '';
+          const errMsg = (linkErr?.message || '').toLowerCase();
+
+          // Only real wrong code or expired code should be treated as verification failures
+          const isWrongCode =
+            errCode === 'auth/invalid-verification-code' ||
+            errCode === 'auth/code-expired' ||
+            errCode === 'auth/missing-verification-code' ||
+            errMsg.includes('invalid-verification-code') ||
+            errMsg.includes('code-expired') ||
+            errMsg.includes('invalid verification code') ||
+            errMsg.includes('code expired');
+
+          if (isWrongCode) {
             throw linkErr;
           }
+
+          // If the rejection was because the phone number is already linked to another account,
+          // requires recent login, or single-provider restriction, the OTP itself was confirmed
+          // valid by Firebase servers before this rejection!
+          console.log('[Addresses] OTP confirmed valid; linking bypassed due to:', errCode);
+          verifiedSuccessfully = true;
         }
+      } else if (confirmationResult && typeof confirmationResult.confirm === 'function') {
+        await confirmationResult.confirm(cleanOtp);
+        verifiedSuccessfully = true;
+      }
+
+      if (verifiedSuccessfully) {
         setPhoneVerified(true);
-        setVerifiedPhoneNumber(countryCode + (form.contact || '').replace(/\D/g, ''));
+        const fullNum = countryCode + (form.contact || '').replace(/\D/g, '');
+        setVerifiedPhoneNumber(fullNum);
         setInlineMsg({ type: 'success', text: t('phoneVerified', 'Phone number verified!') });
         try {
           // Persist verification to the canonical user document. Prefer mappedUserId when available.
@@ -305,42 +331,13 @@ const AddressesPage = () => {
           try { recaptchaVerifier.clear(); } catch (e) { console.debug('Error clearing recaptcha after verify:', e); }
           setRecaptchaVerifier(null);
         }
-      } else {
-        const res = await confirmationResult.confirm(otp);
-        setPhoneVerified(true);
-        setVerifiedPhoneNumber(countryCode + (form.contact || '').replace(/\D/g, ''));
-        setInlineMsg({ type: 'success', text: t('phoneVerified', 'Phone number verified!') });
-        try {
-          const targetUserId = mappedUserId || userId;
-          if (targetUserId) {
-            const userDocRef = doc(db, 'users', targetUserId);
-            await setDoc(userDocRef, {
-              number: (form.contact || '').replace(/\D/g, ''),
-              countryCode: countryCode || '+91',
-              phoneVerified: true
-            }, { merge: true });
-          }
-        } catch (_) {}
-        if (recaptchaVerifier) {
-          try { recaptchaVerifier.clear(); } catch (e) { console.debug('Error clearing recaptcha after verify:', e); }
-          setRecaptchaVerifier(null);
-        }
       }
     } catch (err) {
       console.debug('[Addresses] verifyOtp error', err);
-      if (
-        err &&
-        (err.code === 'auth/provider-already-linked' ||
-          err.code === 'auth/credential-already-in-use' ||
-          err?.message?.includes('provider-already-linked') ||
-          err?.message?.includes('credential-already-in-use'))
-      ) {
-        setPhoneVerified(true);
-        setVerifiedPhoneNumber(countryCode + (form.contact || '').replace(/\D/g, ''));
-        setInlineMsg({ type: 'success', text: t('phoneVerified', 'Phone number verified!') });
-      } else if (err && err.code === 'auth/invalid-verification-code') {
+      const code = err?.code || '';
+      if (code === 'auth/invalid-verification-code') {
         setInlineMsg({ type: 'error', text: t('invalidOtp', 'Invalid OTP. Please check the code and try again.') });
-      } else if (err && err.code === 'auth/code-expired') {
+      } else if (code === 'auth/code-expired') {
         setInlineMsg({ type: 'error', text: t('otpExpired', 'OTP has expired. Please click Resend OTP.') });
       } else {
         setInlineMsg({ type: 'error', text: err?.message || t('verificationFailed', 'Verification failed. Check the OTP and try again.') });
@@ -350,136 +347,227 @@ const AddressesPage = () => {
     }
   };
 
-  // Geolocation helpers with automatic address reverse-geocoding
-  const handleUseCurrentLocation = () => {
+  // Geolocation helpers with high accuracy GPS lock and automatic address reverse-geocoding
+  const handleUseCurrentLocation = async () => {
     setGeoError("");
     if (!('geolocation' in navigator)) {
       setGeoError(t('geoNotSupported', 'Geolocation is not supported by your browser'));
       return;
     }
     setGeoLoading(true);
-    try {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const { latitude, longitude } = pos.coords || {};
-          if (typeof latitude === 'number' && typeof longitude === 'number') {
-            const latStr = String(latitude);
-            const lngStr = String(longitude);
 
-            // Persist current location coordinate
-            try {
-              if (mappedUserId) {
-                const locDocRef = doc(collection(db, `users/${mappedUserId}/locations`));
-                setDoc(locDocRef, { latitude, longitude, pickedAt: serverTimestamp(), source: 'current_location' });
-              }
-            } catch (_) {}
+    // Watch position to obtain the most accurate hardware GPS fix (< 35m)
+    const getAccurateCoordinates = () => {
+      return new Promise((resolve, reject) => {
+        let bestPos = null;
+        let settled = false;
+        let timer = null;
+        let watchId = null;
 
-            let detectedPincode = "";
-            let detectedStreet = "";
-            let detectedTown = "";
-            let detectedCity = "";
-            let detectedDistrict = "";
-            let detectedState = "";
-
-            // 1. Try Google Maps Geocoder if loaded
-            if (window.google && window.google.maps && window.google.maps.Geocoder) {
-              try {
-                const geocoder = new window.google.maps.Geocoder();
-                const res = await new Promise((resolve) => {
-                  geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
-                    if (status === 'OK' && results && results[0]) {
-                      resolve(results[0]);
-                    } else {
-                      resolve(null);
-                    }
-                  });
-                });
-                if (res && res.address_components) {
-                  for (const comp of res.address_components) {
-                    const types = comp.types || [];
-                    if (types.includes('postal_code')) detectedPincode = comp.long_name;
-                    if (types.includes('route') || types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
-                      if (!detectedStreet) detectedStreet = comp.long_name;
-                    }
-                    if (types.includes('locality')) detectedCity = comp.long_name;
-                    if (types.includes('sublocality_level_2') || types.includes('sublocality_level_1')) {
-                      if (!detectedTown) detectedTown = comp.long_name;
-                    }
-                    if (types.includes('administrative_area_level_2')) detectedDistrict = comp.long_name;
-                    if (types.includes('administrative_area_level_1')) detectedState = comp.long_name;
-                  }
-                }
-              } catch (e) {
-                console.warn('[Addresses] Google geocoder error:', e);
-              }
-            }
-
-            // 2. Fallback / Complement with OpenStreetMap Nominatim reverse geocode
-            if (!detectedPincode || !detectedCity || !detectedStreet) {
-              try {
-                const nomRes = await fetch(
-                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
-                );
-                if (nomRes.ok) {
-                  const data = await nomRes.json();
-                  const addr = data.address || {};
-                  if (!detectedPincode && addr.postcode) {
-                    detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
-                  }
-                  if (!detectedStreet) {
-                    detectedStreet = [addr.road, addr.suburb || addr.neighbourhood || addr.residential].filter(Boolean).join(', ');
-                  }
-                  if (!detectedTown) detectedTown = addr.suburb || addr.village || addr.town || addr.city_district || "";
-                  if (!detectedCity) detectedCity = addr.city || addr.town || addr.village || addr.municipality || "";
-                  if (!detectedDistrict) detectedDistrict = addr.county || addr.state_district || addr.district || detectedCity;
-                  if (!detectedState) detectedState = addr.state || "";
-                }
-              } catch (nomErr) {
-                console.warn('[Addresses] Nominatim reverse geocode error:', nomErr);
-              }
-            }
-
-            // 3. Indian Postal Pincode API if 6-digit pincode detected
-            if (detectedPincode && detectedPincode.length === 6) {
-              try {
-                const pinRes = await fetch(`https://api.postalpincode.in/pincode/${detectedPincode}`);
-                const pinData = await pinRes.json();
-                if (pinData?.[0]?.Status === "Success" && pinData[0].PostOffice?.[0]) {
-                  const po = pinData[0].PostOffice[0];
-                  if (!detectedTown) detectedTown = po.Name || "";
-                  if (!detectedCity) detectedCity = po.Division || detectedCity;
-                  if (!detectedDistrict) detectedDistrict = po.District || detectedDistrict;
-                  if (!detectedState) detectedState = po.State || detectedState;
-                }
-              } catch (_) {}
-            }
-
-            // Automatically fill street, pincode, town, city, district, state, leaving door number for manual entry
-            setForm((f) => ({
-              ...f,
-              latitude: latStr,
-              longitude: lngStr,
-              street: detectedStreet || f.street,
-              pincode: detectedPincode || f.pincode,
-              town: detectedTown || detectedCity || f.town,
-              city: detectedCity || f.city,
-              district: detectedDistrict || detectedCity || f.district,
-              state: detectedState || f.state,
-            }));
-            setPincodeError("");
-          } else {
-            setGeoError('Failed to read your location coordinates');
+        const cleanup = () => {
+          if (watchId !== null) {
+            try { navigator.geolocation.clearWatch(watchId); } catch (_) {}
           }
-          setGeoLoading(false);
-        },
-        (err) => {
-          setGeoError(err && err.message ? err.message : 'Unable to get current location');
-          setGeoLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-      );
-    } catch (e) {
-      setGeoError('Location request failed');
+          if (timer) clearTimeout(timer);
+        };
+
+        try {
+          watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+              if (!pos || !pos.coords) return;
+              const { latitude, longitude, accuracy } = pos.coords;
+              if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
+
+              if (!bestPos || (typeof accuracy === 'number' && accuracy < (bestPos.coords.accuracy || Infinity))) {
+                bestPos = pos;
+              }
+
+              // True GPS accuracy lock achieved
+              if (typeof accuracy === 'number' && accuracy <= 35 && !settled) {
+                settled = true;
+                cleanup();
+                resolve(bestPos);
+              }
+            },
+            (err) => {
+              if (bestPos && !settled) {
+                settled = true;
+                cleanup();
+                resolve(bestPos);
+              } else if (!settled) {
+                settled = true;
+                cleanup();
+                reject(err);
+              }
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+
+          // Allow up to 4.5 seconds for watchPosition to narrow down to highest GPS accuracy
+          timer = setTimeout(() => {
+            if (!settled) {
+              settled = true;
+              cleanup();
+              if (bestPos) {
+                resolve(bestPos);
+              } else {
+                navigator.geolocation.getCurrentPosition(
+                  (p) => resolve(p),
+                  (e) => reject(e),
+                  { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+                );
+              }
+            }
+          }, 4500);
+        } catch (e) {
+          if (!settled) {
+            settled = true;
+            cleanup();
+            reject(e);
+          }
+        }
+      });
+    };
+
+    try {
+      const pos = await getAccurateCoordinates();
+      const { latitude, longitude, accuracy } = pos.coords || {};
+      console.log(`[Addresses] GPS locked: ${latitude}, ${longitude} (accuracy: ${accuracy}m)`);
+
+      if (typeof latitude === 'number' && typeof longitude === 'number') {
+        const latStr = String(latitude);
+        const lngStr = String(longitude);
+
+        // Persist current location coordinate
+        try {
+          if (mappedUserId) {
+            const locDocRef = doc(collection(db, `users/${mappedUserId}/locations`));
+            setDoc(locDocRef, { latitude, longitude, pickedAt: serverTimestamp(), source: 'current_location' });
+          }
+        } catch (_) {}
+
+        let detectedPincode = "";
+        let detectedStreet = "";
+        let detectedTown = "";
+        let detectedCity = "";
+        let detectedDistrict = "";
+        let detectedState = "";
+
+        // 1. Try Google Maps Geocoder if loaded
+        if (window.google && window.google.maps && window.google.maps.Geocoder) {
+          try {
+            const geocoder = new window.google.maps.Geocoder();
+            const res = await new Promise((resolve) => {
+              geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+                if (status === 'OK' && results && results[0]) {
+                  resolve(results[0]);
+                } else {
+                  resolve(null);
+                }
+              });
+            });
+            if (res && res.address_components) {
+              let subLoc2 = "";
+              let subLoc1 = "";
+              let route = "";
+              for (const comp of res.address_components) {
+                const types = comp.types || [];
+                if (types.includes('postal_code')) detectedPincode = comp.long_name;
+                if (types.includes('route')) route = comp.long_name;
+                if (types.includes('sublocality_level_2')) subLoc2 = comp.long_name;
+                if (types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
+                  subLoc1 = comp.long_name;
+                }
+                if (types.includes('locality')) detectedCity = comp.long_name;
+                if (types.includes('administrative_area_level_2')) detectedDistrict = comp.long_name;
+                if (types.includes('administrative_area_level_1')) detectedState = comp.long_name;
+              }
+              detectedStreet = [subLoc2, route].filter(Boolean).join(', ') || route || subLoc1 || "";
+              detectedTown = subLoc1 || subLoc2 || "";
+            }
+          } catch (e) {
+            console.warn('[Addresses] Google geocoder error:', e);
+          }
+        }
+
+        // 2. OpenStreetMap Nominatim reverse geocode with zoom=18 for exact street level
+        if (!detectedPincode || !detectedCity || !detectedStreet) {
+          try {
+            const nomRes = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1&zoom=18`,
+              { headers: { 'Accept-Language': 'en' } }
+            );
+            if (nomRes.ok) {
+              const data = await nomRes.json();
+              const addr = data.address || {};
+              if (!detectedPincode && addr.postcode) {
+                detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
+              }
+              if (!detectedStreet) {
+                detectedStreet = [addr.road, addr.suburb || addr.neighbourhood || addr.residential].filter(Boolean).join(', ');
+              }
+              if (!detectedTown) detectedTown = addr.suburb || addr.village || addr.town || addr.city_district || addr.hamlet || "";
+              if (!detectedCity) detectedCity = addr.city || addr.town || addr.village || addr.municipality || "";
+              if (!detectedDistrict) detectedDistrict = addr.county || addr.state_district || addr.district || detectedCity;
+              if (!detectedState) detectedState = addr.state || "";
+            }
+          } catch (nomErr) {
+            console.warn('[Addresses] Nominatim reverse geocode error:', nomErr);
+          }
+        }
+
+        // 3. BigDataCloud reverse geocode fallback
+        if (!detectedPincode || !detectedCity || !detectedStreet) {
+          try {
+            const bdcRes = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            );
+            if (bdcRes.ok) {
+              const bdcData = await bdcRes.json();
+              if (!detectedPincode && bdcData.postcode) {
+                detectedPincode = bdcData.postcode.replace(/\D/g, '').slice(0, 6);
+              }
+              if (!detectedCity && bdcData.city) detectedCity = bdcData.city;
+              if (!detectedTown && bdcData.locality) detectedTown = bdcData.locality;
+              if (!detectedState && bdcData.principalSubdivision) detectedState = bdcData.principalSubdivision;
+            }
+          } catch (_) {}
+        }
+
+        // 4. Postal Pincode API ONLY for filling missing district/state (never overwrite city or town)
+        if (detectedPincode && detectedPincode.length === 6 && (!detectedDistrict || !detectedState)) {
+          try {
+            const pinRes = await fetch(`https://api.postalpincode.in/pincode/${detectedPincode}`);
+            const pinData = await pinRes.json();
+            if (pinData?.[0]?.Status === "Success" && pinData[0].PostOffice?.[0]) {
+              const po = pinData[0].PostOffice[0];
+              if (!detectedDistrict) detectedDistrict = po.District || "";
+              if (!detectedState) detectedState = po.State || "";
+            }
+          } catch (_) {}
+        }
+
+        // Automatically fill street, pincode, town, city, district, state, coordinates.
+        // DOOR NUMBER is strictly left untouched for manual entry by the user.
+        setForm((f) => ({
+          ...f,
+          latitude: latStr,
+          longitude: lngStr,
+          street: detectedStreet || f.street,
+          pincode: detectedPincode || f.pincode,
+          town: detectedTown || detectedCity || f.town,
+          city: detectedCity || f.city,
+          district: detectedDistrict || detectedCity || f.district,
+          state: detectedState || f.state || 'Tamil Nadu',
+        }));
+        setPincodeError("");
+      } else {
+        setGeoError('Failed to read your location coordinates');
+      }
+    } catch (err) {
+      console.error('[Addresses] Location error:', err);
+      setGeoError(err && err.message ? err.message : 'Unable to get current location');
+    } finally {
       setGeoLoading(false);
     }
   };

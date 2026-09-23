@@ -61,22 +61,56 @@ const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, on
           let detectedDistrict = "";
           let detectedState = "";
 
-          try {
-            const nomRes = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
-            );
-            if (nomRes.ok) {
-              const data = await nomRes.json();
-              const addr = data.address || {};
-              if (addr.postcode) detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
-              if (addr.road || addr.suburb) {
-                detectedStreet = [addr.road, addr.suburb || addr.neighbourhood].filter(Boolean).join(', ');
+          // 1. Google Maps Geocoder if available
+          if (window.google?.maps?.Geocoder) {
+            try {
+              const geocoder = new window.google.maps.Geocoder();
+              const res = await new Promise((resolve) => {
+                geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+                  resolve(status === 'OK' && results?.[0] ? results[0] : null);
+                });
+              });
+              if (res?.address_components) {
+                let subLoc2 = "";
+                let subLoc1 = "";
+                let route = "";
+                for (const comp of res.address_components) {
+                  const types = comp.types || [];
+                  if (types.includes('postal_code')) detectedPincode = comp.long_name;
+                  if (types.includes('route')) route = comp.long_name;
+                  if (types.includes('sublocality_level_2')) subLoc2 = comp.long_name;
+                  if (types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
+                    subLoc1 = comp.long_name;
+                  }
+                  if (types.includes('locality')) detectedCity = comp.long_name;
+                  if (types.includes('administrative_area_level_2')) detectedDistrict = comp.long_name;
+                  if (types.includes('administrative_area_level_1')) detectedState = comp.long_name;
+                }
+                detectedStreet = [subLoc2, route].filter(Boolean).join(', ') || route || subLoc1 || detectedStreet;
               }
-              detectedCity = addr.city || addr.town || addr.village || "";
-              detectedDistrict = addr.county || addr.district || detectedCity;
-              detectedState = addr.state || "";
-            }
-          } catch (_) {}
+            } catch (_) {}
+          }
+
+          // 2. High-zoom Nominatim fallback
+          if (!detectedPincode || !detectedCity) {
+            try {
+              const nomRes = await fetch(
+                `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&addressdetails=1&zoom=18`,
+                { headers: { 'Accept-Language': 'en' } }
+              );
+              if (nomRes.ok) {
+                const data = await nomRes.json();
+                const addr = data.address || {};
+                if (addr.postcode) detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
+                if (addr.road || addr.suburb) {
+                  detectedStreet = [addr.road, addr.suburb || addr.neighbourhood].filter(Boolean).join(', ');
+                }
+                if (!detectedCity) detectedCity = addr.city || addr.town || addr.village || "";
+                if (!detectedDistrict) detectedDistrict = addr.county || addr.district || detectedCity;
+                if (!detectedState) detectedState = addr.state || "";
+              }
+            } catch (_) {}
+          }
 
           // Create address object with detected coordinates and resolved address
           const newAddress = {

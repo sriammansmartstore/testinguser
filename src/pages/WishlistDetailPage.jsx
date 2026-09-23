@@ -7,8 +7,10 @@ import ProductCard from "../components/ProductCard";
 import { db } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { useLanguage } from "../context/LanguageContext";
 
 const WishlistDetailPage = () => {
+  const { t, getProductName } = useLanguage();
   const handleDeleteProduct = async (productId) => {
     if (!user || !wishlistId || !productId) return;
     try {
@@ -76,7 +78,7 @@ const WishlistDetailPage = () => {
                 <IconButton aria-label="Delete from wishlist" color="error" sx={{ position: 'absolute', top: 8, right: 8, background: '#fff', borderRadius: '50%', boxShadow: 1 }} onClick={() => handleDeleteProduct(product.id)}>
                   <DeleteIcon />
                 </IconButton>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>{product.name}</Typography>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>{getProductName(product)}</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{product.brand}</Typography>
                 {/* Unit selector if multiple units/options */}
                 {Array.isArray(product.options) && product.options.length > 1 && (
