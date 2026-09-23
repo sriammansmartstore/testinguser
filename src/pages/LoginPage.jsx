@@ -175,28 +175,35 @@ const LoginPage = () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
+      // Direct redirect navigation has zero chance of being blocked by popup blockers
+      await signInWithRedirect(auth, provider);
+    } catch (err) {
+      console.error("Google redirect login error:", err);
+      // Fallback to popup if redirect not supported
+      try {
+        const result = await signInWithPopup(auth, provider);
+        if (result?.user) {
+          handlePostLogin(result.user);
+        }
+      } catch (popupErr) {
+        console.error("Google popup login error:", popupErr);
+        setError(popupErr?.message || "Google login failed.");
+      }
+    }
+  };
+
+  const handleGooglePopup = async () => {
+    setError("");
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
       const result = await signInWithPopup(auth, provider);
       if (result?.user) {
         handlePostLogin(result.user);
       }
     } catch (err) {
-      console.error("Google login error:", err);
-      if (err?.code === 'auth/unauthorized-domain') {
-        setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
-      } else if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
-        // Automatically redirect to Google login so browser popup blockers never block the user
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirectErr) {
-          console.error("Redirect fallback error:", redirectErr);
-          setError("Browser blocked the login popup! Click 'Continue with Google' button below to open Google directly.");
-        }
-      } else if (err?.code === 'auth/popup-closed-by-user') {
-        setError("Login popup was closed before completion.");
-      } else {
-        setError(err?.message || "Google login failed.");
-      }
+      console.error("Popup login error:", err);
+      setError(err?.message || "Popup login failed. Please use main 'Login with Google' button.");
     }
   };
 
@@ -292,7 +299,7 @@ const LoginPage = () => {
             <Button variant="outlined" onClick={handleResendOtp} disabled={!resendActive}>{resendActive ? 'Resend OTP' : `Resend (${resendTimer}s)`}</Button>
           </Box>
         )}
-        <Box id="recaptcha-container-login" style={{ display: 'none' }} />
+        <Box id="recaptcha-container-login" />
         <Divider className="login-divider">OR</Divider>
         <Button variant="outlined" className="login-google-btn" fullWidth onClick={handleGoogleLogin}>
           <Box className="login-google-icon">
@@ -300,17 +307,14 @@ const LoginPage = () => {
           </Box>
           <Box sx={{ textTransform: 'none', fontWeight: 700 }}>Login with Google</Box>
         </Button>
-        {error && (error.toLowerCase().includes('popup') || error.toLowerCase().includes('blocked')) && (
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            onClick={handleDirectGoogleRedirect}
-            sx={{ textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 2 }}
-          >
-            Click here to Continue with Google
-          </Button>
-        )}
+        <Button
+          variant="text"
+          size="small"
+          onClick={handleGooglePopup}
+          sx={{ textTransform: 'none', color: '#666', fontSize: '0.78rem', mt: 0.5 }}
+        >
+          Or click here for popup window
+        </Button>
         <Typography className="switch-link" onClick={() => navigate("/signup")}>Don't have an account? Sign Up</Typography>
       </Box>
     </Box>

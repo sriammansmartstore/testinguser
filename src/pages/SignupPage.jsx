@@ -221,28 +221,33 @@ const SignupPage = () => {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
+      await signInWithRedirect(auth, provider);
+    } catch (err) {
+      console.error("Google redirect signup error:", err);
+      try {
+        const result = await signInWithPopup(auth, provider);
+        if (result?.user) {
+          handlePostSignup(result.user);
+        }
+      } catch (popupErr) {
+        console.error("Google popup signup error:", popupErr);
+        setError(popupErr?.message || "Google signup failed.");
+      }
+    }
+  };
+
+  const handleGooglePopup = async () => {
+    setError("");
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
       const result = await signInWithPopup(auth, provider);
       if (result?.user) {
         handlePostSignup(result.user);
       }
     } catch (err) {
-      console.error("Google signup error:", err);
-      if (err?.code === 'auth/unauthorized-domain') {
-        setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
-      } else if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
-        // Automatically redirect to Google sign-up so browser popup blockers never block the user
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirectErr) {
-          console.error("Redirect fallback error:", redirectErr);
-          setError("Browser blocked the signup popup! Click 'Continue with Google' button below to open Google directly.");
-        }
-      } else if (err?.code === 'auth/popup-closed-by-user') {
-        setError("Signup popup was closed before completion.");
-      } else {
-        setError(err?.message || "Google signup failed.");
-      }
+      console.error("Popup signup error:", err);
+      setError(err?.message || "Popup signup failed. Please use main 'Sign Up with Google' button.");
     }
   };
 
@@ -295,21 +300,18 @@ const SignupPage = () => {
         <Divider className="signup-divider">OR</Divider>
         <Button variant="outlined" className="signup-google-btn" fullWidth onClick={handleGoogleSignup}>
           <Box className="signup-google-icon">
-            <GoogleGIcon className="signup-google-icon-svg" />
+            <GoogleGIcon className="login-google-icon-svg" />
           </Box>
           <Box sx={{ textTransform: 'none', fontWeight: 700 }}>Sign Up with Google</Box>
         </Button>
-        {error && (error.toLowerCase().includes('popup') || error.toLowerCase().includes('blocked')) && (
-          <Button
-            variant="contained"
-            color="primary"
-            fullWidth
-            onClick={handleDirectGoogleRedirect}
-            sx={{ textTransform: 'none', fontWeight: 600, mt: 1, borderRadius: 2 }}
-          >
-            Click here to Continue with Google
-          </Button>
-        )}
+        <Button
+          variant="text"
+          size="small"
+          onClick={handleGooglePopup}
+          sx={{ textTransform: 'none', color: '#666', fontSize: '0.78rem', mt: 0.5 }}
+        >
+          Or click here for popup window
+        </Button>
         <Typography className="switch-link" onClick={() => navigate("/login")} sx={{ cursor: 'pointer' }}>Already have an account? Login</Typography>
       </Box>
     </Box>
