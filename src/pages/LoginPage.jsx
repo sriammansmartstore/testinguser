@@ -103,20 +103,29 @@ const LoginPage = () => {
 
   const handlePostLogin = async (user) => {
     if (!user) return;
-    try {
-      // Resolve existing account or link to existing user doc so historical data (old memory) is restored
-      const userDocId = await ensureUserDocId(user.uid, user.email || null, user.phoneNumber || null);
-      if (userDocId) {
-        await setDoc(doc(db, 'users', userDocId), {
-          email: user.email || null,
-          uid: user.uid,
-          userId: userDocId,
-          fullName: user.displayName || null,
-        }, { merge: true });
+    
+    // Asynchronously resolve and link existing user document so past orders, coins, addresses (old memory) are restored
+    const syncPromise = (async () => {
+      try {
+        const userDocId = await ensureUserDocId(user.uid, user.email || null, user.phoneNumber || null);
+        if (userDocId) {
+          await setDoc(doc(db, 'users', userDocId), {
+            email: user.email || null,
+            uid: user.uid,
+            userId: userDocId,
+            fullName: user.displayName || null,
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.warn("Post-login user doc sync error:", e);
       }
-    } catch (e) {
-      console.warn("Post-login user doc sync error:", e);
-    }
+    })();
+
+    // Wait max 2 seconds for initial link, then navigate so user never gets stuck
+    await Promise.race([
+      syncPromise,
+      new Promise((resolve) => setTimeout(resolve, 2000))
+    ]);
 
     // Immediately navigate user into the app
     const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
@@ -162,68 +171,82 @@ const LoginPage = () => {
   };
 
   useEffect(() => {
-    let isMounted = true;
-
-    // Check if user returned from Google Redirect sign-in
+    // 1. Process redirect result if returning from signInWithRedirect
     getRedirectResult(auth)
-      .then((result) => {
-        if (isMounted && result?.user) {
-          handlePostLogin(result.user);
+      .then(async (result) => {
+        if (result?.user) {
+          setGoogleLoading(true);
+          await handlePostLogin(result.user);
         }
       })
       .catch((err) => {
         console.error("Redirect login error:", err);
+        if (err?.code === 'auth/unauthorized-domain') {
+          setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
+        }
       });
 
-    const unsub = onAuthStateChanged(auth, (currentUser) => {
-      if (isMounted && currentUser) {
-        handlePostLogin(currentUser);
+    // 2. Auth state observer
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        await handlePostLogin(currentUser);
       }
     });
 
     return () => {
-      isMounted = false;
       unsub();
     };
-  }, [navigate, location]);
+  }, []);
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     setError("");
-    setGoogleLoading(true);
+    // IMPORTANT: Call signInWithPopup SYNCHRONOUSLY directly inside the user click handler!
+    // Do NOT set state or disable the button before calling signInWithPopup, as mutating the
+    // clicked element immediately revokes the browser's user activation token and triggers auth/popup-blocked!
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      // Primary: Use signInWithPopup for fast, reliable, zero-refresh login
-      const result = await signInWithPopup(auth, provider);
-      if (result?.user) {
-        await handlePostLogin(result.user);
-      }
-    } catch (err) {
-      console.error("Google popup login error:", err);
-      // Fallback: If browser explicitly blocked popup window, fall back to redirect
-      if (err?.code === 'auth/popup-blocked') {
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirErr) {
-          setError(redirErr?.message || "Google redirect login failed.");
+
+    signInWithPopup(auth, provider)
+      .then(async (result) => {
+        if (result?.user) {
+          setGoogleLoading(true);
+          await handlePostLogin(result.user);
         }
-      } else if (err?.code !== 'auth/popup-closed-by-user') {
-        setError(err?.message || "Google login failed. Please try again.");
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
+      })
+      .catch(async (err) => {
+        console.error("Google popup login error:", err);
+        if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
+          // If the browser/webview blocked popups, seamlessly fallback to signInWithRedirect
+          try {
+            setGoogleLoading(true);
+            await signInWithRedirect(auth, provider);
+          } catch (redirErr) {
+            console.error("Redirect fallback error:", redirErr);
+            setError("Google login was blocked by your browser. Please try again or use Phone login.");
+            setGoogleLoading(false);
+          }
+        } else if (err?.code === 'auth/unauthorized-domain') {
+          setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
+          setGoogleLoading(false);
+        } else if (err?.code !== 'auth/popup-closed-by-user') {
+          setError(err?.message || "Google login failed. Please try again.");
+          setGoogleLoading(false);
+        } else {
+          setGoogleLoading(false);
+        }
+      });
   };
 
   const handleDirectGoogleRedirect = async () => {
     try {
+      setGoogleLoading(true);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithRedirect(auth, provider);
     } catch (err) {
       console.error("Direct redirect error:", err);
       setError(err?.message || "Google redirect failed.");
+      setGoogleLoading(false);
     }
   };
 

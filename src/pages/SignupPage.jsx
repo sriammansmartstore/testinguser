@@ -100,19 +100,27 @@ const SignupPage = () => {
 
   const handlePostSignup = async (user) => {
     if (!user) return;
-    try {
-      const userDocId = await ensureUserDocId(user.uid, user.email || null, user.phoneNumber || null);
-      if (userDocId) {
-        await setDoc(doc(db, "users", userDocId), {
-          email: user.email || null,
-          uid: user.uid,
-          userId: userDocId,
-          fullName: user.displayName || null,
-        }, { merge: true });
+    
+    const syncPromise = (async () => {
+      try {
+        const userDocId = await ensureUserDocId(user.uid, user.email || null, user.phoneNumber || null);
+        if (userDocId) {
+          await setDoc(doc(db, "users", userDocId), {
+            email: user.email || null,
+            uid: user.uid,
+            userId: userDocId,
+            fullName: user.displayName || null,
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.warn("User doc setup error:", e);
       }
-    } catch (e) {
-      console.warn("User doc setup error:", e);
-    }
+    })();
+
+    await Promise.race([
+      syncPromise,
+      new Promise((resolve) => setTimeout(resolve, 2000))
+    ]);
 
     const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
     try {
@@ -163,66 +171,78 @@ const SignupPage = () => {
   };
 
   useEffect(() => {
-    let isMounted = true;
-
-    // Check if user returned from Google Redirect sign-up
+    // 1. Check redirect result
     getRedirectResult(auth)
-      .then((result) => {
-        if (isMounted && result?.user) {
-          handlePostSignup(result.user);
+      .then(async (result) => {
+        if (result?.user) {
+          setGoogleLoading(true);
+          await handlePostSignup(result.user);
         }
       })
       .catch((err) => {
         console.error("Redirect signup error:", err);
+        if (err?.code === 'auth/unauthorized-domain') {
+          setError("This domain is not authorized in Firebase Console.");
+        }
       });
 
-    const unsub = onAuthStateChanged(auth, (currentUser) => {
-      if (isMounted && currentUser) {
-        handlePostSignup(currentUser);
+    // 2. Auth state observer
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        await handlePostSignup(currentUser);
       }
     });
 
     return () => {
-      isMounted = false;
       unsub();
     };
-  }, [navigate, location]);
+  }, []);
 
-  const handleGoogleSignup = async () => {
+  const handleGoogleSignup = () => {
     setError("");
-    setGoogleLoading(true);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      const result = await signInWithPopup(auth, provider);
-      if (result?.user) {
-        await handlePostSignup(result.user);
-      }
-    } catch (err) {
-      console.error("Google popup signup error:", err);
-      if (err?.code === 'auth/popup-blocked') {
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirErr) {
-          setError(redirErr?.message || "Google signup failed.");
+
+    signInWithPopup(auth, provider)
+      .then(async (result) => {
+        if (result?.user) {
+          setGoogleLoading(true);
+          await handlePostSignup(result.user);
         }
-      } else if (err?.code !== 'auth/popup-closed-by-user') {
-        setError(err?.message || "Google signup failed. Please try again.");
-      }
-    } finally {
-      setGoogleLoading(false);
-    }
+      })
+      .catch(async (err) => {
+        console.error("Google popup signup error:", err);
+        if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
+          try {
+            setGoogleLoading(true);
+            await signInWithRedirect(auth, provider);
+          } catch (redirErr) {
+            console.error("Redirect fallback error:", redirErr);
+            setError("Google signup was blocked by your browser. Please try again or use Phone signup.");
+            setGoogleLoading(false);
+          }
+        } else if (err?.code === 'auth/unauthorized-domain') {
+          setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
+          setGoogleLoading(false);
+        } else if (err?.code !== 'auth/popup-closed-by-user') {
+          setError(err?.message || "Google signup failed. Please try again.");
+          setGoogleLoading(false);
+        } else {
+          setGoogleLoading(false);
+        }
+      });
   };
 
   const handleDirectGoogleRedirect = async () => {
     try {
+      setGoogleLoading(true);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithRedirect(auth, provider);
     } catch (err) {
       console.error("Direct redirect error:", err);
       setError(err?.message || "Google redirect failed.");
+      setGoogleLoading(false);
     }
   };
 
