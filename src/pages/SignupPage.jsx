@@ -137,7 +137,14 @@ const SignupPage = () => {
       }, { merge: true });
       navigate("/userdata");
     } catch (err) {
-      setError("Google signup failed.");
+      console.error("Google signup error:", err);
+      if (err?.code === 'auth/unauthorized-domain') {
+        setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
+      } else if (err?.code === 'auth/popup-closed-by-user') {
+        setError("Signup popup was closed before completion.");
+      } else {
+        setError(err?.message || "Google signup failed.");
+      }
     }
   };
 

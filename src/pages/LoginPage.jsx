@@ -129,7 +129,14 @@ const LoginPage = () => {
       const result = await signInWithPopup(auth, provider);
       await handlePostLogin(result.user);
     } catch (err) {
-      setError("Google login failed.");
+      console.error("Google login error:", err);
+      if (err?.code === 'auth/unauthorized-domain') {
+        setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
+      } else if (err?.code === 'auth/popup-closed-by-user') {
+        setError("Login popup was closed before completion.");
+      } else {
+        setError(err?.message || "Google login failed.");
+      }
     }
   };
 
