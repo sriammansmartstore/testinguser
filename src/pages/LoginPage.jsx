@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
-import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, getDoc, setDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import './LoginPage.css';
@@ -125,6 +125,18 @@ const LoginPage = () => {
 
   useEffect(() => {
     let isMounted = true;
+
+    // Check if user returned from Google Redirect sign-in
+    getRedirectResult(auth)
+      .then((result) => {
+        if (isMounted && result?.user) {
+          handlePostLogin(result.user);
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect login error:", err);
+      });
+
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       if (isMounted && currentUser) {
         handlePostLogin(currentUser);
@@ -150,8 +162,15 @@ const LoginPage = () => {
       console.error("Google login error:", err);
       if (err?.code === 'auth/unauthorized-domain') {
         setError("This domain is not authorized in Firebase Console (Authentication -> Settings -> Authorized Domains).");
-      } else if (err?.code === 'auth/popup-blocked') {
-        setError("Browser blocked the login popup! Please click the popup icon in your browser URL bar, choose 'Always allow popups', and try again.");
+      } else if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/cancelled-popup-request') {
+        // Automatically redirect to Google login so browser popup blockers never block the user
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirectErr) {
+          console.error("Redirect fallback error:", redirectErr);
+          setError("Browser blocked both popup and redirect. Please check browser settings to allow Google login.");
+        }
       } else if (err?.code === 'auth/popup-closed-by-user') {
         setError("Login popup was closed before completion.");
       } else {
