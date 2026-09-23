@@ -1,0 +1,36 @@
+/* Desktop container: center content and limit width */
+.product-details-root {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Mobile/All: horizontal scroll for selectors and cards */
+.horizontal-scroll {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  gap: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+.horizontal-scroll::-webkit-scrollbar {
+  height: 6px;
+  background: #eee;
+}
+.horizontal-scroll::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+@media (max-width: 600px) {
+  .product-details-root {
+    padding: 0.5rem !important;
+    border-radius: 0 !important;
+    max-width: 100vw !important;
+  }
+  .horizontal-scroll {
+    gap: 0.3rem;
+    padding-bottom: 0.3rem;
+  }
+}

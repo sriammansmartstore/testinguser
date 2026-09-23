@@ -1,0 +1,19 @@
+.notifications-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.notifications-title {
+  color: #388e3c;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.notification-card {
+  background: linear-gradient(120deg, #fffde7 0%, #fff 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(255, 152, 0, 0.10);
+  margin-bottom: 12px;
+  padding: 20px;
+}

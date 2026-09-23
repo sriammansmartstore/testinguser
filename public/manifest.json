@@ -1,0 +1,27 @@
+{
+  "short_name": "Sri Amman",
+  "name": "Sri Amman Smart Store",
+  "icons": [
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-icon-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/android-icon-144x144.png",
+      "type": "image/png",
+      "sizes": "144x144"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#388e3c",
+  "display": "standalone",
+  "orientation": "portrait"
+}

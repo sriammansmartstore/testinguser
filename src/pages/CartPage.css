@@ -1,0 +1,25 @@
+.checkout-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.checkout-title {
+  color: #388e3c;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.checkout-summary {
+  background: linear-gradient(120deg, #e0f7fa 0%, #fff 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(67, 160, 71, 0.10);
+  margin-bottom: 16px;
+  padding: 20px;
+}
+.place-order-btn {
+  background: #388e3c;
+  color: #fff;
+  font-weight: 600;
+  margin-top: 16px;
+}

@@ -1,0 +1,52 @@
+.payment-root {
+  padding: 16px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.payment-title {
+  color: #388e3c;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.payment-option-card {
+  background: linear-gradient(120deg, #fce4ec 0%, #fff 100%);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(233, 30, 99, 0.10);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pay-btn {
+  background: #388e3c;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Ensure reCAPTCHA widget is visible above the fixed bottom nav */
+/* place the reCAPTCHA widget fixed above the BottomNavbar so it won't be clipped */
+#recaptcha-container {
+  position: fixed;
+  right: 16px;
+  bottom: 72px; /* leave space above BottomNavbar (adjust if your BottomNavbar height differs) */
+  z-index: 2000; /* above BottomNavbar z-index:1000 */
+  display: block;
+  background: transparent;
+}
+
+/* If the Card or parent has overflow issues on mobile make sure the widget can overflow */
+.MuiCard-root, .payment-root, .payment-option-card {
+  overflow: visible;
+}
+
+@media (max-width: 600px) {
+  /* slightly raise top spacing so recaptcha iframe isn't flush with bottom nav */
+  #recaptcha-container { bottom: 80px; right: 12px; }
+}

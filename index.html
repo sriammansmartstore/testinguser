@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#388e3c" />
+    <meta name="description" content="Sri Amman Smart Store – Shop groceries and daily essentials online. Fast delivery, great prices, and secure checkout." />
+    <meta name="robots" content="index,follow" />
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="Sri Amman Smart Store" />
+    <meta property="og:title" content="Sri Amman Smart Store" />
+    <meta property="og:description" content="Shop groceries and daily essentials online. Fast delivery and best prices." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/banner.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Sri Amman Smart Store" />
+    <meta name="twitter:description" content="Shop groceries and daily essentials online. Fast delivery and best prices." />
+    <meta name="twitter:image" content="/banner.png" />
+    <!-- Favicons and Apple Touch Icons -->
+    <link rel="apple-touch-icon" sizes="57x57" href="/apple-icon-57x57.png" />
+    <link rel="apple-touch-icon" sizes="60x60" href="/apple-icon-60x60.png" />
+    <link rel="apple-touch-icon" sizes="72x72" href="/apple-icon-72x72.png" />
+    <link rel="apple-touch-icon" sizes="76x76" href="/apple-icon-76x76.png" />
+    <link rel="apple-touch-icon" sizes="114x114" href="/apple-icon-114x114.png" />
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-icon-120x120.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/apple-icon-144x144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-icon-152x152.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-icon-180x180.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96x96.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <!-- MS Tiles -->
+    <meta name="msapplication-TileColor" content="#388e3c" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    <link rel="manifest" href="/manifest.json" />
+    <!-- Performance: Preconnect to Google Fonts and load Montserrat globally -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet" />
+    <title>Sri Amman Smart Store</title>
+    <!-- Razorpay Checkout Script -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <!-- Google reCAPTCHA (standard, invisible/background usage) -->
+    <!--
+      Use the standard reCAPTCHA script so Firebase's RecaptchaVerifier can
+      render an invisible widget. Avoid embedding enterprise-specific keys
+      or the v3 render flow here. The site key (if needed) should be configured
+      in Firebase Auth -> Authorized domains and the Firebase console.
+    -->
+    <script async defer src="https://www.google.com/recaptcha/api.js"></script>
+    <!-- Google Maps JavaScript API with Places and Geometry libraries -->
+    <script>
+      window.googleMapsLoaded = false;
+      function onGoogleMapsLoaded() {
+        window.googleMapsLoaded = true;
+      }
+    </script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=%VITE_GOOGLE_MAPS_API_KEY%&libraries=places,geometry&callback=onGoogleMapsLoaded&loading=async"></script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,609 @@
+/* Standardized Product Card Styling */
+.product-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(56, 142, 60, 0.13);
+  transition: transform 0.18s, box-shadow 0.18s;
+  background: #fff;
+  justify-content: flex-start;
+  align-items: stretch;
+  margin: 0;
+  position: relative;
+  padding: 14px 10px 12px 10px;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-width: 120px;
+  max-width: 240px;
+  min-height: 340px;
+  height: 100%;
+}
+/* Standardized image container for all cards */
+.product-card-image-container {
+  width: 100%;
+  aspect-ratio: 1/1;
+  min-height: 120px;
+  max-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0 auto 10px auto;
+  padding: 0;
+}
+.product-card-title, .product-name {
+  font-size: 1.01rem;
+  font-weight: 700;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 4px 0 2px 0;
+  text-align: center;
+  color: #222;
+  line-height: 1.15;
+  min-height: 1.3em;
+}
+.product-card-pricing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  margin: 6px 0 0 0;
+  padding-bottom: 0 !important;
+  min-height: 60px;
+}
+.add-to-cart-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 56px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  position: relative;
+  box-sizing: border-box;
+}
+/* Standardized Add to Cart Button */
+.add-to-cart-btn {
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+  font-size: 0.92rem !important;
+  padding: 7px 0 !important;
+  min-height: 40px;
+  text-transform: capitalize !important;
+  box-shadow: none !important;
+  transition: all 0.18s !important;
+  line-height: 1.2 !important;
+  background: linear-gradient(90deg, #388e3c 60%, #43a047 100%) !important;
+  color: #fff !important;
+}
+.add-to-cart-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 4px 16px rgba(56, 142, 60, 0.18) !important;
+}
+@media (max-width: 400px) {
+  .product-card {
+    min-width: 110px;
+    max-width: 98vw;
+    padding: 6px 2px 8px 2px;
+    border-radius: 8px;
+    min-height: 220px;
+  }
+  .product-card-image-container {
+    border-radius: 6px;
+    min-height: 80px;
+    max-height: 100px;
+  }
+  .product-name, .product-card-title {
+    font-size: 0.82rem !important;
+    min-height: 1.1em !important;
+  }
+  .product-card-pricing {
+    min-height: 38px;
+  }
+  .add-to-cart-btn {
+    font-size: 0.74rem !important;
+    min-height: 28px !important;
+    padding: 3px 0 !important;
+  }
+}
+@media (max-width: 600px) {
+  .product-card {
+    min-width: 120px;
+    max-width: 48vw;
+    padding: 8px 4px 10px 4px;
+    border-radius: 10px;
+    min-height: 260px;
+  }
+  .product-card-image-container {
+    border-radius: 8px;
+    min-height: 100px;
+    max-height: 120px;
+  }
+  .product-name, .product-card-title {
+    font-size: 0.92rem !important;
+    min-height: 1.2em !important;
+  }
+  .product-card-pricing {
+    min-height: 48px;
+  }
+  .add-to-cart-btn {
+    font-size: 0.82rem !important;
+    min-height: 32px !important;
+    padding: 4px 0 !important;
+  }
+}
+@media (min-width: 900px) {
+  .product-card {
+    max-width: 220px;
+    min-width: 180px;
+    padding: 14px 10px 12px 10px;
+    border-radius: 14px;
+    min-height: 340px;
+  }
+  .product-card-image-container {
+    border-radius: 12px;
+    min-height: 140px;
+    max-height: 160px;
+  }
+  .product-name, .product-card-title {
+    font-size: 1.01rem !important;
+    min-height: 1.3em !important;
+  }
+  .product-card-pricing {
+    min-height: 60px;
+  }
+  .add-to-cart-btn {
+    font-size: 0.92rem !important;
+    min-height: 40px !important;
+    padding: 7px 0 !important;
+  }
+}
+@media (min-width: 1200px) {
+  .product-card {
+    max-width: 200px;
+    min-width: 180px;
+    padding: 14px 10px 12px 10px;
+    min-height: 340px;
+  }
+}
+
+.categories-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  align-items: stretch;
+  grid-auto-rows: 1fr;
+  padding-bottom: 112px;
+}
+
+@media (max-width: 600px) {
+  .categories-products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
+
+.product-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card-image-container {
+  aspect-ratio: 1/1;
+  width: 100%;
+  max-height: 140px;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+/* Responsive grid for categories products area */
+.categories-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0;
+  align-items: start;
+  padding-bottom: 112px;
+}
+
+@media (max-width: 600px) {
+  .categories-products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
+/* Advanced grid for product cards */
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+  width: 100%;
+  margin: 0 auto;
+  /* Ensure grid has enough bottom spacing so fixed bottom controls don't cover last items */
+  padding-bottom: 60px;
+}
+
+@media (max-width: 600px) {
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+}
+.scrolling-text-container {
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  height: 1.4em;
+}
+
+.scrolling-text {
+  display: inline-block;
+  white-space: nowrap;
+  animation: scroll-left 8s linear infinite;
+  font-size: inherit;
+}
+
+@keyframes scroll-left {
+  0% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.home-root {
+  padding: 0 6px 10px 6px;
+  background: #fff;
+  min-height: 100vh;
+}
+
+/* Header styles for sticky behavior */
+.header-container {
+  position: relative;
+  z-index: 1200;
+  width: 100%;
+}
+
+.scrollable-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  transition: transform 0.3s ease;
+  z-index: 1200;
+}
+
+.scrollable-header.hidden {
+  transform: translateY(-100%);
+}
+
+.search-bar-wrapper {
+  position: relative;
+  width: 100%;
+  background: white;
+  z-index: 1300;
+  transition: all 0.3s ease;
+}
+
+.search-bar-wrapper.sticky {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Spacer for fixed header content */
+.header-spacer {
+  height: var(--header-height);
+  display: none;
+}
+
+.header-spacer.visible {
+  display: block;
+}
+
+.search-bar {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(56, 142, 60, 0.08);
+  margin-bottom: 0;
+  min-height: 48px;
+
+}
+
+.section-title {
+  margin: 16px 0 8px 0;
+  color: #43a047;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  font-size: 1.05rem;
+}
+
+.featured-products {
+  margin-bottom: 32px;
+}
+/* Update the product card styling */
+.product-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(56, 142, 60, 0.12);
+  transition: transform 0.2s, box-shadow 0.2s;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0; /* Use Grid spacing for gutters to keep equal widths */
+  position: relative;
+  padding: 12px 8px;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-width: 100px;
+  max-width: 220px;
+}
+  /* Add responsive styles for product cards */
+  @media (max-width: 400px) {
+    .product-card {
+      min-width: 110px;
+      padding: 6px 2px;
+      border-radius: 8px;
+    }
+    .product-card-image-container {
+      border-radius: 6px;
+    }
+    .product-name, .product-card-title {
+      font-size: 0.78rem !important;
+      height: 1.1em !important;
+    }
+    .selling-price {
+      font-size: 0.92rem !important;
+    }
+    .mrp-price, .discount-badge {
+      font-size: 0.68rem !important;
+    }
+    .add-to-cart-btn {
+      font-size: 0.68rem !important;
+      min-height: 22px !important;
+      padding: 2px 4px !important;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .product-card {
+      min-width: 120px;
+      padding: 8px 4px;
+      border-radius: 10px;
+    }
+    .product-card-image-container {
+      border-radius: 8px;
+    }
+    .product-name, .product-card-title {
+      font-size: 0.88rem !important;
+      height: 1.2em !important;
+    }
+    .selling-price {
+      font-size: 1rem !important;
+    }
+    .mrp-price, .discount-badge {
+      font-size: 0.75rem !important;
+    }
+    .add-to-cart-btn {
+      font-size: 0.75rem !important;
+      min-height: 24px !important;
+      padding: 3px 6px !important;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .product-card {
+      max-width: 220px;
+      min-width: 180px;
+      padding: 12px 8px;
+      border-radius: 12px;
+    }
+    .product-card-image-container {
+      border-radius: 12px;
+    }
+    .product-name, .product-card-title {
+      font-size: 1rem !important;
+      height: 1.4em !important;
+    }
+    .selling-price {
+      font-size: 1.1rem !important;
+    }
+    .mrp-price, .discount-badge {
+      font-size: 0.85rem !important;
+    }
+    .add-to-cart-btn {
+      font-size: 0.85rem !important;
+      min-height: 28px !important;
+      padding: 4px 8px !important;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .product-card {
+      max-width: 200px;
+      min-width: 180px;
+      padding: 12px 8px;
+    }
+  }
+
+/* Container for product cards */
+.products-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 4px;
+  margin: 0 -6px; /* Compensate for card margins */
+}
+
+/* Badge container for discount ribbon */
+.product-card-badge-container {
+  pointer-events: none;
+  overflow: hidden;
+}
+.product-card-badge {
+  pointer-events: none;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(211,47,47,0.13);
+  font-family: 'Montserrat', sans-serif;
+}
+
+/* Uniform image container */
+.product-card-image-container {
+  width: 100%;
+  aspect-ratio: 1/1; /* Default square if supported */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f9f9f9;
+  margin: 0 auto 8px;
+  overflow: hidden;
+  padding: 0; /* remove inner padding */
+  border-radius: 8px;
+}
+
+/* Universal square media wrapper (fallback, robust across browsers) */
+.square-media {
+  position: relative;
+  width: 100%;
+  padding-top: 100%; /* 1:1 square via padding hack */
+  overflow: hidden;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.square-media > img, .square-media .MuiCardMedia-root {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important; /* crop to fill square */
+  border-radius: 8px !important;
+}
+
+.product-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* default */
+  display: block;
+  border-radius: 8px !important;
+}
+
+/* When using universal square-media, enforce cover */
+.product-card .square-media img {
+  object-fit: cover !important;
+}
+
+/* Consistent text styling */
+.product-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 4px 0;
+  text-align: center;
+  color: #333;
+}
+
+/* Price styling */
+/* Product Card Price Section */
+.product-card-pricing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 4px 0 0 0;
+  padding-bottom: 0 !important;
+
+}
+
+.price-row {
+  margin: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.mrp-price {
+  font-size: 0.78rem;
+  color: #757575;
+  text-decoration: line-through;
+}
+
+.selling-price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #388e3c;
+}
+
+.discount-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #d32f2f;
+  background: #ffebee;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-bottom: 0 !important;
+}
+
+/* Add to Cart Button */
+/* Add to Cart Button Container - always visible, compact, and fixed at the bottom of the card */
+.add-to-cart-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* Unify Add to Cart Button Styles - use only this definition */
+.add-to-cart-btn {
+  width: 100%;
+  margin: 0 auto;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  font-size: 0.78rem !important;
+  padding: 4px 8px !important;
+  min-height: 28px;
+  text-transform: capitalize !important;
+  box-shadow: none !important;
+  transition: all 0.2s !important;
+  line-height: 1.1 !important;
+  background: linear-gradient(90deg, #388e3c 60%, #43a047 100%) !important;
+  color: #fff !important;
+}
+
+.add-to-cart-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(56, 142, 60, 0.18) !important;
+}
