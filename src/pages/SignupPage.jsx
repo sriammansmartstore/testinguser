@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import './SignupPage.css';
@@ -125,24 +125,47 @@ const SignupPage = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+      if (isMounted && currentUser) {
+        try {
+          const userDocId = await ensureUserDocId(currentUser.uid, currentUser.email || null);
+          await setDoc(doc(db, "users", userDocId), {
+            email: currentUser.email,
+            uid: currentUser.uid,
+            userId: userDocId,
+            fullName: currentUser.displayName,
+          }, { merge: true }).catch(() => {});
+        } catch (e) {
+          console.warn("User doc setup error:", e);
+        }
+        navigate("/userdata");
+      }
+    });
+
     getRedirectResult(auth)
       .then(async (result) => {
         if (isMounted && result && result.user) {
-          const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
-          await setDoc(doc(db, "users", userDocId), {
-            email: result.user.email,
-            uid: result.user.uid,
-            userId: userDocId,
-            fullName: result.user.displayName,
-          }, { merge: true });
+          try {
+            const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
+            await setDoc(doc(db, "users", userDocId), {
+              email: result.user.email,
+              uid: result.user.uid,
+              userId: userDocId,
+              fullName: result.user.displayName,
+            }, { merge: true }).catch(() => {});
+          } catch (e) {
+            console.warn("User doc setup error:", e);
+          }
           navigate("/userdata");
         }
       })
       .catch((err) => {
         console.error("Redirect signup error:", err);
       });
+
     return () => {
       isMounted = false;
+      unsub();
     };
   }, []);
 
@@ -152,14 +175,16 @@ const SignupPage = () => {
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
       const result = await signInWithPopup(auth, provider);
-      const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
-      await setDoc(doc(db, "users", userDocId), {
-        email: result.user.email,
-        uid: result.user.uid,
-        userId: userDocId,
-        fullName: result.user.displayName,
-      }, { merge: true });
-      navigate("/userdata");
+      if (result?.user) {
+        const userDocId = await ensureUserDocId(result.user.uid, result.user.email || null);
+        await setDoc(doc(db, "users", userDocId), {
+          email: result.user.email,
+          uid: result.user.uid,
+          userId: userDocId,
+          fullName: result.user.displayName,
+        }, { merge: true }).catch(() => {});
+        navigate("/userdata");
+      }
     } catch (err) {
       console.error("Google signup error:", err);
       if (err?.code === 'auth/unauthorized-domain') {
@@ -181,21 +206,26 @@ const SignupPage = () => {
   };
 
   const ensureUserDocId = async (uid, email) => {
-    const mapRef = doc(db, 'usersByUid', uid);
-    const mapSnap = await getDoc(mapRef);
-    if (mapSnap.exists() && mapSnap.data()?.userDocId) return mapSnap.data().userDocId;
-    const seqRef = doc(db, 'meta', 'userSequence');
-    const nextId = await runTransaction(db, async (tx) => {
-      const seqSnap = await tx.get(seqRef);
-      const curr = seqSnap.exists() ? (seqSnap.data().current || 0) : 0;
-      const updated = curr + 1;
-      tx.set(seqRef, { current: updated }, { merge: true });
-      return updated;
-    });
-    const userDocId = `SASS${String(nextId).padStart(7, '0')}`;
-    await setDoc(doc(db, 'users', userDocId), { uid, email: email || null, userId: userDocId }, { merge: true });
-    await setDoc(mapRef, { userDocId, uid }, { merge: true });
-    return userDocId;
+    try {
+      const mapRef = doc(db, 'usersByUid', uid);
+      const mapSnap = await getDoc(mapRef);
+      if (mapSnap.exists() && mapSnap.data()?.userDocId) return mapSnap.data().userDocId;
+      const seqRef = doc(db, 'meta', 'userSequence');
+      const nextId = await runTransaction(db, async (tx) => {
+        const seqSnap = await tx.get(seqRef);
+        const curr = seqSnap.exists() ? (seqSnap.data().current || 0) : 0;
+        const updated = curr + 1;
+        tx.set(seqRef, { current: updated }, { merge: true });
+        return updated;
+      });
+      const userDocId = `SASS${String(nextId).padStart(7, '0')}`;
+      await setDoc(doc(db, 'users', userDocId), { uid, email: email || null, userId: userDocId }, { merge: true });
+      await setDoc(mapRef, { userDocId, uid }, { merge: true });
+      return userDocId;
+    } catch (err) {
+      console.warn("Fallback to uid for userDocId:", err);
+      return uid;
+    }
   };
 
   const flagFor = (cc) => (cc === '+91' ? '🇮🇳' : cc === '+1' ? '🇺🇸' : cc === '+44' ? '🇬🇧' : cc === '+61' ? '🇦🇺' : cc === '+971' ? '🇦🇪' : '🌐');

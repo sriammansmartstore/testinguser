@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
 import { doc, getDoc, setDoc, runTransaction } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import './LoginPage.css';
@@ -124,6 +124,12 @@ const LoginPage = () => {
 
   useEffect(() => {
     let isMounted = true;
+    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+      if (isMounted && currentUser) {
+        await handlePostLogin(currentUser);
+      }
+    });
+
     getRedirectResult(auth)
       .then(async (result) => {
         if (isMounted && result && result.user) {
@@ -133,8 +139,10 @@ const LoginPage = () => {
       .catch((err) => {
         console.error("Redirect login error:", err);
       });
+
     return () => {
       isMounted = false;
+      unsub();
     };
   }, []);
 
@@ -144,7 +152,9 @@ const LoginPage = () => {
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
       const result = await signInWithPopup(auth, provider);
-      await handlePostLogin(result.user);
+      if (result?.user) {
+        await handlePostLogin(result.user);
+      }
     } catch (err) {
       console.error("Google login error:", err);
       if (err?.code === 'auth/unauthorized-domain') {
@@ -166,35 +176,47 @@ const LoginPage = () => {
   };
 
   const ensureUserDocId = async (uid, email) => {
-    const mapRef = doc(db, 'usersByUid', uid);
-    const mapSnap = await getDoc(mapRef);
-    if (mapSnap.exists() && mapSnap.data()?.userDocId) {
-      return mapSnap.data().userDocId;
+    try {
+      const mapRef = doc(db, 'usersByUid', uid);
+      const mapSnap = await getDoc(mapRef);
+      if (mapSnap.exists() && mapSnap.data()?.userDocId) {
+        return mapSnap.data().userDocId;
+      }
+      // allocate new sequential id
+      const seqRef = doc(db, 'meta', 'userSequence');
+      const nextId = await runTransaction(db, async (tx) => {
+        const seqSnap = await tx.get(seqRef);
+        const curr = seqSnap.exists() ? (seqSnap.data().current || 0) : 0;
+        const updated = curr + 1;
+        tx.set(seqRef, { current: updated }, { merge: true });
+        return updated;
+      });
+      const userDocId = `SASS${String(nextId).padStart(7, '0')}`;
+      await setDoc(doc(db, 'users', userDocId), { uid, email: email || null, userId: userDocId }, { merge: true });
+      await setDoc(mapRef, { userDocId, uid }, { merge: true });
+      return userDocId;
+    } catch (err) {
+      console.warn("Fallback to uid for userDocId:", err);
+      return uid;
     }
-    // allocate new sequential id
-    const seqRef = doc(db, 'meta', 'userSequence');
-    const nextId = await runTransaction(db, async (tx) => {
-      const seqSnap = await tx.get(seqRef);
-      const curr = seqSnap.exists() ? (seqSnap.data().current || 0) : 0;
-      const updated = curr + 1;
-      tx.set(seqRef, { current: updated }, { merge: true });
-      return updated;
-    });
-    const userDocId = `SASS${String(nextId).padStart(7, '0')}`;
-    await setDoc(doc(db, 'users', userDocId), { uid, email: email || null, userId: userDocId }, { merge: true });
-    await setDoc(mapRef, { userDocId, uid }, { merge: true });
-    return userDocId;
   };
 
   const handlePostLogin = async (user) => {
-    // Resolve custom doc id
-    const userDocId = await ensureUserDocId(user.uid, user.email || null);
-    const userRef = doc(db, 'users', userDocId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists() || !userSnap.data().fullName || !userSnap.data().number || !userSnap.data().gender || !userSnap.data().dob) {
-      await setDoc(userRef, { email: user.email || null, uid: user.uid, userId: userDocId }, { merge: true });
-      navigate("/userdata");
-    } else {
+    if (!user) return;
+    try {
+      // Resolve custom doc id
+      const userDocId = await ensureUserDocId(user.uid, user.email || null);
+      const userRef = doc(db, 'users', userDocId);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists() || !userSnap.data()?.fullName || !userSnap.data()?.number || !userSnap.data()?.gender || !userSnap.data()?.dob) {
+        await setDoc(userRef, { email: user.email || null, uid: user.uid, userId: userDocId }, { merge: true }).catch(() => {});
+        navigate("/userdata");
+      } else {
+        navigate("/");
+      }
+    } catch (err) {
+      console.error("handlePostLogin error:", err);
+      // Fail-safe navigation so user is never stuck
       navigate("/");
     }
   };
