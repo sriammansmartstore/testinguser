@@ -4,7 +4,8 @@ import { RecaptchaVerifier, signInWithPhoneNumber, PhoneAuthProvider, linkWithCr
 import { useNavigate } from "react-router-dom";
 import { db, auth } from "../firebase";
 import { AuthContext } from "../context/AuthContext";
-import { doc, setDoc, getDoc, runTransaction, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, query, where, getDocs, serverTimestamp } from "firebase/firestore";
+import { ensureUserDocId } from "../utils/userUtils";
 
 const genders = ["Male", "Female", "Other"];
 
@@ -224,24 +225,8 @@ const UserDataPage = ({ editMode = false, onSave }) => {
 
   const handleSubmit = async () => {
     const cc = countryCode;
-    // Resolve mapping first
-    const mapRef = doc(db, 'usersByUid', user.uid);
-    const mapSnap = await getDoc(mapRef);
-    let currentUserId = mapSnap.exists() ? (mapSnap.data().userDocId || "") : "";
-
-    // Generate sequential userId if missing: SASS0000001, SASS0000002, ...
-    if (!currentUserId) {
-      const seqRef = doc(db, 'meta', 'userSequence');
-      const nextId = await runTransaction(db, async (tx) => {
-        const seqSnap = await tx.get(seqRef);
-        const curr = seqSnap.exists() ? (seqSnap.data().current || 0) : 0;
-        const updated = curr + 1;
-        tx.set(seqRef, { current: updated }, { merge: true });
-        return updated;
-      });
-      const pad = String(nextId).padStart(7, '0');
-      currentUserId = `SASS${pad}`;
-    }
+    // Resolve mapping first using unified userDocId helper
+    let currentUserId = await ensureUserDocId(user.uid, user.email || null, number || null);
 
     // Validate referral code if provided and not already set
     let updates = {

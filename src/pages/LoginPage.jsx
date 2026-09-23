@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
-import { doc, getDoc, setDoc, runTransaction } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { ensureUserDocId } from "../utils/userUtils";
 import './LoginPage.css';
 
 // Modern Google 'G' mark as inline SVG to keep crisp rendering
@@ -23,6 +24,7 @@ const LoginPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -99,6 +101,37 @@ const LoginPage = () => {
     await sendOtp();
   };
 
+  const handlePostLogin = async (user) => {
+    if (!user) return;
+    try {
+      // Resolve existing account or link to existing user doc so historical data (old memory) is restored
+      const userDocId = await ensureUserDocId(user.uid, user.email || null, user.phoneNumber || null);
+      if (userDocId) {
+        await setDoc(doc(db, 'users', userDocId), {
+          email: user.email || null,
+          uid: user.uid,
+          userId: userDocId,
+          fullName: user.displayName || null,
+        }, { merge: true });
+      }
+    } catch (e) {
+      console.warn("Post-login user doc sync error:", e);
+    }
+
+    // Immediately navigate user into the app
+    const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
+    try {
+      navigate(target, { replace: true });
+    } catch (_) {}
+    
+    // Fail-safe in case router did not change location
+    setTimeout(() => {
+      if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
+        window.location.replace(target);
+      }
+    }, 150);
+  };
+
   const verifyOtpAndLogin = async () => {
     if (!confirmationResult) { setError('No OTP request found.'); return; }
     setVerifying(true);
@@ -107,24 +140,19 @@ const LoginPage = () => {
       const result = await confirmationResult.confirm(otp);
       const user = result.user;
       
-      // Update user details in background without blocking immediate navigation
-      (async () => {
-        try {
-          const userDocId = await ensureUserDocId(user.uid, user.email || null);
-          await setDoc(doc(db, 'users', userDocId), {
-            uid: user.uid,
-            userId: userDocId,
-            number: number.replace(/\D/g, ''),
-            countryCode,
-            phoneVerified: true,
-            email: user.email || null
-          }, { merge: true });
-        } catch (e) {
-          console.warn('Background phone user doc sync:', e);
-        }
-      })();
+      const userDocId = await ensureUserDocId(user.uid, user.email || null, number);
+      if (userDocId) {
+        await setDoc(doc(db, 'users', userDocId), {
+          uid: user.uid,
+          userId: userDocId,
+          number: number.replace(/\D/g, ''),
+          countryCode,
+          phoneVerified: true,
+          email: user.email || null
+        }, { merge: true });
+      }
 
-      handlePostLogin(user);
+      await handlePostLogin(user);
     } catch (err) {
       console.error('OTP confirmation error:', err);
       setError(err?.message || 'Verification failed. Please try again.');
@@ -159,6 +187,35 @@ const LoginPage = () => {
     };
   }, [navigate, location]);
 
+  const handleGoogleLogin = async () => {
+    setError("");
+    setGoogleLoading(true);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    try {
+      // Primary: Use signInWithPopup for fast, reliable, zero-refresh login
+      const result = await signInWithPopup(auth, provider);
+      if (result?.user) {
+        await handlePostLogin(result.user);
+      }
+    } catch (err) {
+      console.error("Google popup login error:", err);
+      // Fallback: If browser explicitly blocked popup window, fall back to redirect
+      if (err?.code === 'auth/popup-blocked') {
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirErr) {
+          setError(redirErr?.message || "Google redirect login failed.");
+        }
+      } else if (err?.code !== 'auth/popup-closed-by-user') {
+        setError(err?.message || "Google login failed. Please try again.");
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   const handleDirectGoogleRedirect = async () => {
     try {
       const provider = new GoogleAuthProvider();
@@ -168,89 +225,6 @@ const LoginPage = () => {
       console.error("Direct redirect error:", err);
       setError(err?.message || "Google redirect failed.");
     }
-  };
-
-  const handleGoogleLogin = async () => {
-    setError("");
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      // Direct redirect navigation has zero chance of being blocked by popup blockers
-      await signInWithRedirect(auth, provider);
-    } catch (err) {
-      console.error("Google redirect login error:", err);
-      // Fallback to popup if redirect not supported
-      try {
-        const result = await signInWithPopup(auth, provider);
-        if (result?.user) {
-          handlePostLogin(result.user);
-        }
-      } catch (popupErr) {
-        console.error("Google popup login error:", popupErr);
-        setError(popupErr?.message || "Google login failed.");
-      }
-    }
-  };
-
-  const handleGooglePopup = async () => {
-    setError("");
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      const result = await signInWithPopup(auth, provider);
-      if (result?.user) {
-        handlePostLogin(result.user);
-      }
-    } catch (err) {
-      console.error("Popup login error:", err);
-      setError(err?.message || "Popup login failed. Please use main 'Login with Google' button.");
-    }
-  };
-
-  const ensureUserDocId = async (uid, email) => {
-    try {
-      const mapRef = doc(db, 'usersByUid', uid);
-      const mapSnap = await getDoc(mapRef);
-      if (mapSnap.exists() && mapSnap.data()?.userDocId) {
-        return mapSnap.data().userDocId;
-      }
-      return uid;
-    } catch (err) {
-      return uid;
-    }
-  };
-
-  const handlePostLogin = (user) => {
-    if (!user) return;
-    // Asynchronously update profile in Firestore in background without blocking navigation
-    (async () => {
-      try {
-        const userDocId = await ensureUserDocId(user.uid, user.email || null);
-        const userRef = doc(db, 'users', userDocId);
-        await setDoc(userRef, {
-          email: user.email || null,
-          uid: user.uid,
-          userId: userDocId,
-          fullName: user.displayName || null,
-        }, { merge: true });
-        await setDoc(mapRef, { userDocId, uid: user.uid }, { merge: true });
-      } catch (e) {
-        console.warn("Background user doc sync:", e);
-      }
-    })();
-
-    // Immediately navigate user into the app
-    const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
-    try {
-      navigate(target, { replace: true });
-    } catch (_) {}
-    
-    // Fail-safe: If SPA router did not navigate away from /login, force browser window location
-    setTimeout(() => {
-      if (window.location.pathname === '/login' || window.location.pathname === '/signup') {
-        window.location.replace(target);
-      }
-    }, 100);
   };
 
   return (
@@ -301,19 +275,31 @@ const LoginPage = () => {
         )}
         <Box id="recaptcha-container-login" />
         <Divider className="login-divider">OR</Divider>
-        <Button variant="outlined" className="login-google-btn" fullWidth onClick={handleGoogleLogin}>
-          <Box className="login-google-icon">
-            <GoogleGIcon className="login-google-icon-svg" />
+        <Button 
+          variant="outlined" 
+          className="login-google-btn" 
+          fullWidth 
+          onClick={handleGoogleLogin}
+          disabled={googleLoading}
+        >
+          {googleLoading ? (
+            <CircularProgress size={22} sx={{ mr: 1 }} />
+          ) : (
+            <Box className="login-google-icon">
+              <GoogleGIcon className="login-google-icon-svg" />
+            </Box>
+          )}
+          <Box sx={{ textTransform: 'none', fontWeight: 700 }}>
+            {googleLoading ? "Signing in..." : "Login with Google"}
           </Box>
-          <Box sx={{ textTransform: 'none', fontWeight: 700 }}>Login with Google</Box>
         </Button>
         <Button
           variant="text"
           size="small"
-          onClick={handleGooglePopup}
+          onClick={handleDirectGoogleRedirect}
           sx={{ textTransform: 'none', color: '#666', fontSize: '0.78rem', mt: 0.5 }}
         >
-          Or click here for popup window
+          Trouble with popup? Click for direct redirect
         </Button>
         <Typography className="switch-link" onClick={() => navigate("/signup")}>Don't have an account? Sign Up</Typography>
       </Box>

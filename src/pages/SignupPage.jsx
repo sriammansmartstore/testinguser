@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Box, Typography, TextField, Button, Divider, Alert, CircularProgress } from "@mui/material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
-import { doc, setDoc, getDoc, runTransaction } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "../firebase";
+import { ensureUserDocId } from "../utils/userUtils";
 import './SignupPage.css';
 
 const GoogleGIcon = ({ className }) => (
@@ -22,6 +23,7 @@ const SignupPage = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
@@ -31,7 +33,6 @@ const SignupPage = () => {
   const location = useLocation();
 
   useEffect(() => {
-    // countdown for resend
     let timer;
     if (otpSent && resendTimer > 0) {
       timer = setInterval(() => {
@@ -97,17 +98,31 @@ const SignupPage = () => {
     await sendOtp();
   };
 
-  const ensureUserDocId = async (uid, email) => {
+  const handlePostSignup = async (user) => {
+    if (!user) return;
     try {
-      const mapRef = doc(db, 'usersByUid', uid);
-      const mapSnap = await getDoc(mapRef);
-      if (mapSnap.exists() && mapSnap.data()?.userDocId) {
-        return mapSnap.data().userDocId;
+      const userDocId = await ensureUserDocId(user.uid, user.email || null, user.phoneNumber || null);
+      if (userDocId) {
+        await setDoc(doc(db, "users", userDocId), {
+          email: user.email || null,
+          uid: user.uid,
+          userId: userDocId,
+          fullName: user.displayName || null,
+        }, { merge: true });
       }
-      return uid;
-    } catch (err) {
-      return uid;
+    } catch (e) {
+      console.warn("User doc setup error:", e);
     }
+
+    const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
+    try {
+      navigate(target, { replace: true });
+    } catch (_) {}
+    setTimeout(() => {
+      if (window.location.pathname === '/signup' || window.location.pathname === '/login') {
+        window.location.replace(target);
+      }
+    }, 150);
   };
 
   const verifyOtpAndCreateUser = async () => {
@@ -121,29 +136,24 @@ const SignupPage = () => {
       const result = await confirmationResult.confirm(otp);
       const u = result.user;
 
-      // Update in background without blocking immediate navigation
-      (async () => {
-        try {
-          const userDocId = await ensureUserDocId(u.uid, u.email || null);
-          await setDoc(doc(db, 'users', userDocId), {
-            uid: u.uid,
-            userId: userDocId,
-            number: number.replace(/\D/g, ''),
-            countryCode,
-            phoneVerified: true,
-            email: u.email || null
-          }, { merge: true });
-        } catch (e) {
-          console.warn('Background signup user doc sync:', e);
-        }
-      })();
+      const userDocId = await ensureUserDocId(u.uid, u.email || null, number);
+      if (userDocId) {
+        await setDoc(doc(db, 'users', userDocId), {
+          uid: u.uid,
+          userId: userDocId,
+          number: number.replace(/\D/g, ''),
+          countryCode,
+          phoneVerified: true,
+          email: u.email || null
+        }, { merge: true });
+      }
 
       navigate('/userdata', { replace: true });
       setTimeout(() => {
         if (window.location.pathname === '/signup') {
           window.location.replace('/userdata');
         }
-      }, 100);
+      }, 150);
     } catch (err) {
       console.error('Signup OTP confirmation error:', err);
       setError(err?.message || 'Verification failed. Please try again.');
@@ -178,31 +188,31 @@ const SignupPage = () => {
     };
   }, [navigate, location]);
 
-  const handlePostSignup = (user) => {
-    if (!user) return;
-    (async () => {
-      try {
-        const userDocId = await ensureUserDocId(user.uid, user.email || null);
-        await setDoc(doc(db, "users", userDocId), {
-          email: user.email || null,
-          uid: user.uid,
-          userId: userDocId,
-          fullName: user.displayName || null,
-        }, { merge: true });
-      } catch (e) {
-        console.warn("User doc setup error:", e);
-      }
-    })();
-
-    const target = location.state?.from && location.state.from !== '/login' && location.state.from !== '/signup' ? location.state.from : '/';
+  const handleGoogleSignup = async () => {
+    setError("");
+    setGoogleLoading(true);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
-      navigate(target, { replace: true });
-    } catch (_) {}
-    setTimeout(() => {
-      if (window.location.pathname === '/signup' || window.location.pathname === '/login') {
-        window.location.replace(target);
+      const result = await signInWithPopup(auth, provider);
+      if (result?.user) {
+        await handlePostSignup(result.user);
       }
-    }, 100);
+    } catch (err) {
+      console.error("Google popup signup error:", err);
+      if (err?.code === 'auth/popup-blocked') {
+        try {
+          await signInWithRedirect(auth, provider);
+          return;
+        } catch (redirErr) {
+          setError(redirErr?.message || "Google signup failed.");
+        }
+      } else if (err?.code !== 'auth/popup-closed-by-user') {
+        setError(err?.message || "Google signup failed. Please try again.");
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleDirectGoogleRedirect = async () => {
@@ -213,41 +223,6 @@ const SignupPage = () => {
     } catch (err) {
       console.error("Direct redirect error:", err);
       setError(err?.message || "Google redirect failed.");
-    }
-  };
-
-  const handleGoogleSignup = async () => {
-    setError("");
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      await signInWithRedirect(auth, provider);
-    } catch (err) {
-      console.error("Google redirect signup error:", err);
-      try {
-        const result = await signInWithPopup(auth, provider);
-        if (result?.user) {
-          handlePostSignup(result.user);
-        }
-      } catch (popupErr) {
-        console.error("Google popup signup error:", popupErr);
-        setError(popupErr?.message || "Google signup failed.");
-      }
-    }
-  };
-
-  const handleGooglePopup = async () => {
-    setError("");
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-    try {
-      const result = await signInWithPopup(auth, provider);
-      if (result?.user) {
-        handlePostSignup(result.user);
-      }
-    } catch (err) {
-      console.error("Popup signup error:", err);
-      setError(err?.message || "Popup signup failed. Please use main 'Sign Up with Google' button.");
     }
   };
 
@@ -298,24 +273,35 @@ const SignupPage = () => {
         )}
         <Box id="recaptcha-container-signup" />
         <Divider className="signup-divider">OR</Divider>
-        <Button variant="outlined" className="signup-google-btn" fullWidth onClick={handleGoogleSignup}>
-          <Box className="signup-google-icon">
-            <GoogleGIcon className="login-google-icon-svg" />
+        <Button 
+          variant="outlined" 
+          className="signup-google-btn" 
+          fullWidth 
+          onClick={handleGoogleSignup}
+          disabled={googleLoading}
+        >
+          {googleLoading ? (
+            <CircularProgress size={22} sx={{ mr: 1 }} />
+          ) : (
+            <Box className="signup-google-icon">
+              <GoogleGIcon className="login-google-icon-svg" />
+            </Box>
+          )}
+          <Box sx={{ textTransform: 'none', fontWeight: 700 }}>
+            {googleLoading ? "Signing up..." : "Sign Up with Google"}
           </Box>
-          <Box sx={{ textTransform: 'none', fontWeight: 700 }}>Sign Up with Google</Box>
         </Button>
         <Button
           variant="text"
           size="small"
-          onClick={handleGooglePopup}
+          onClick={handleDirectGoogleRedirect}
           sx={{ textTransform: 'none', color: '#666', fontSize: '0.78rem', mt: 0.5 }}
         >
-          Or click here for popup window
+          Trouble with popup? Click for direct redirect
         </Button>
         <Typography className="switch-link" onClick={() => navigate("/login")} sx={{ cursor: 'pointer' }}>Already have an account? Login</Typography>
       </Box>
     </Box>
   );
 };
-
 export default SignupPage;
