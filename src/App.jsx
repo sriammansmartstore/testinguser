@@ -6,7 +6,7 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import "@fontsource/montserrat";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
-import { LanguageProvider } from "./context/LanguageContext";
+import { LanguageProvider, useLanguage } from "./context/LanguageContext";
 import { NotificationProvider } from './components/NotificationProvider';
 import { UIProvider } from './context/UIContext';
 import { HelmetProvider, Helmet } from 'react-helmet-async';
@@ -179,6 +179,7 @@ function RoutedLayout() {
   const navType = useNavigationType();
   const onHome = location.pathname === '/';
   const { user } = React.useContext(AuthContext) || {};
+  const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
   const [cartCount, setCartCount] = React.useState(0);
   const [installPromptEvent, setInstallPromptEvent] = React.useState(null);
@@ -429,7 +430,30 @@ function RoutedLayout() {
               Install
             </Button>
           )}
-          <IconButton id="global-notifications-button" color="inherit" component={RouterLink} to="/notifications" size="large" sx={{ ml: 1 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setLanguage(language === 'tamil' ? 'english' : 'tamil')}
+            sx={{
+              ml: 1,
+              borderColor: '#388e3c',
+              color: '#388e3c',
+              fontWeight: 700,
+              fontSize: '0.85rem',
+              textTransform: 'none',
+              borderRadius: 2,
+              px: 1.2,
+              py: 0.35,
+              minWidth: 'auto',
+              '&:hover': {
+                borderColor: '#2e7d32',
+                backgroundColor: 'rgba(56, 142, 60, 0.08)'
+              }
+            }}
+          >
+            {language === 'tamil' ? 'English' : 'தமிழ்'}
+          </Button>
+          <IconButton id="global-notifications-button" color="inherit" component={RouterLink} to="/notifications" size="large" sx={{ ml: 0.5 }}>
             <Badge 
               badgeContent={unreadCount}
               color="error"

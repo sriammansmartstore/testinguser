@@ -722,6 +722,11 @@ const openMapPicker = async () => {
           );
         };
 
+        // If no coordinates yet, auto-center on user's current GPS location immediately
+        if (!hasCoords) {
+          window.__map_recenter_to_my_location();
+        }
+
       } catch (e) {
         console.error('[AddressMap] Map initialization error:', e);
         setMapInitError(e.message || 'Failed to initialize map');
@@ -765,79 +770,134 @@ const confirmPickedLocation = async () => {
     return;
   }
   const { lat, lng } = pickedLatLng;
-  if (!isWithinDelivery(lat, lng)) {
-    setGeoError('Selected location is outside our delivery area. Please choose a location within range.');
-    return;
-  }
   const latStr = String(lat);
   const lngStr = String(lng);
   setForm((f) => ({ ...f, latitude: latStr, longitude: lngStr }));
-  // Also persist this picked location to Firestore under the current user
+
+  // Persist this picked location to Firestore under the current user
   try {
     if (mappedUserId) {
       const locDocRef = doc(collection(db, `users/${mappedUserId}/locations`));
-      await setDoc(locDocRef, { latitude: lat, longitude: lng, pickedAt: serverTimestamp() });
+      await setDoc(locDocRef, { latitude: lat, longitude: lng, pickedAt: serverTimestamp(), source: 'map_picker' });
     }
   } catch (e) {
     console.warn('Failed to persist picked location:', e);
   }
 
-  // Reverse geocode picked location to automatically fill street, pincode, city, state
-  try {
-    if (window.google && window.google.maps && window.google.maps.Geocoder) {
-      const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-        if (status === 'OK' && results && results[0]) {
-          let pPin = "", pStreet = "", pTown = "", pCity = "", pDist = "", pState = "";
-          for (const comp of results[0].address_components) {
-            const types = comp.types || [];
-            if (types.includes('postal_code')) pPin = comp.long_name;
-            if (types.includes('route') || types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
-              if (!pStreet) pStreet = comp.long_name;
-            }
-            if (types.includes('locality')) pCity = comp.long_name;
-            if (types.includes('sublocality_level_2') || types.includes('sublocality_level_1')) {
-              if (!pTown) pTown = comp.long_name;
-            }
-            if (types.includes('administrative_area_level_2')) pDist = comp.long_name;
-            if (types.includes('administrative_area_level_1')) pState = comp.long_name;
-          }
-          setForm((f) => ({
-            ...f,
-            street: f.street || pStreet,
-            pincode: f.pincode || pPin,
-            town: f.town || pTown || pCity,
-            city: f.city || pCity,
-            district: f.district || pDist,
-            state: f.state || pState
-          }));
-        }
-      });
-    } else {
-      // Fallback with OpenStreetMap
-      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`)
-        .then((res) => res.json())
-        .then((data) => {
-          const addr = data?.address || {};
-          const pPin = addr.postcode ? addr.postcode.replace(/\D/g, '').slice(0, 6) : "";
-          const pStreet = [addr.road, addr.suburb || addr.neighbourhood].filter(Boolean).join(', ');
-          const pCity = addr.city || addr.town || addr.village || "";
-          const pDist = addr.county || addr.district || pCity;
-          const pState = addr.state || "";
-          setForm((f) => ({
-            ...f,
-            street: f.street || pStreet,
-            pincode: f.pincode || pPin,
-            town: f.town || pCity,
-            city: f.city || pCity,
-            district: f.district || pDist,
-            state: f.state || pState
-          }));
-        })
-        .catch(() => {});
-    }
-  } catch (_) {}
+  // Multi-tier reverse geocode to automatically fill street, pincode, city, state, leaving door number strictly manual
+  let detectedStreet = "";
+  let detectedTown = "";
+  let detectedCity = "";
+  let detectedDistrict = "";
+  let detectedState = "";
+  let detectedPincode = "";
 
+  // 1. Google Maps Geocoder
+  if (window.google && window.google.maps && window.google.maps.Geocoder) {
+    try {
+      const geocoder = new window.google.maps.Geocoder();
+      const res = await new Promise((resolve) => {
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            resolve(results[0]);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+      if (res && res.address_components) {
+        let subLoc2 = "";
+        let subLoc1 = "";
+        let route = "";
+        for (const comp of res.address_components) {
+          const types = comp.types || [];
+          if (types.includes('postal_code')) detectedPincode = comp.long_name;
+          if (types.includes('route')) route = comp.long_name;
+          if (types.includes('sublocality_level_2')) subLoc2 = comp.long_name;
+          if (types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
+            subLoc1 = comp.long_name;
+          }
+          if (types.includes('locality')) detectedCity = comp.long_name;
+          if (types.includes('administrative_area_level_2')) detectedDistrict = comp.long_name;
+          if (types.includes('administrative_area_level_1')) detectedState = comp.long_name;
+        }
+        detectedStreet = [subLoc2, route].filter(Boolean).join(', ') || route || subLoc1 || "";
+        detectedTown = subLoc1 || subLoc2 || "";
+      }
+    } catch (e) {
+      console.warn('[Addresses] Google geocoder error on picked location:', e);
+    }
+  }
+
+  // 2. OpenStreetMap Nominatim reverse geocode fallback with zoom=18
+  if (!detectedPincode || !detectedCity || !detectedStreet) {
+    try {
+      const nomRes = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1&zoom=18`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      if (nomRes.ok) {
+        const data = await nomRes.json();
+        const addr = data?.address || {};
+        if (!detectedPincode && addr.postcode) {
+          detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
+        }
+        if (!detectedStreet) {
+          detectedStreet = [addr.road, addr.suburb || addr.neighbourhood || addr.residential].filter(Boolean).join(', ');
+        }
+        if (!detectedTown) detectedTown = addr.suburb || addr.village || addr.town || addr.city_district || addr.hamlet || "";
+        if (!detectedCity) detectedCity = addr.city || addr.town || addr.village || addr.municipality || "";
+        if (!detectedDistrict) detectedDistrict = addr.county || addr.state_district || addr.district || detectedCity;
+        if (!detectedState) detectedState = addr.state || "";
+      }
+    } catch (nomErr) {
+      console.warn('[Addresses] Nominatim reverse geocode error on picked location:', nomErr);
+    }
+  }
+
+  // 3. BigDataCloud reverse geocode fallback
+  if (!detectedPincode || !detectedCity || !detectedStreet) {
+    try {
+      const bdcRes = await fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+      );
+      if (bdcRes.ok) {
+        const bdcData = await bdcRes.json();
+        if (!detectedPincode && bdcData.postcode) {
+          detectedPincode = bdcData.postcode.replace(/\D/g, '').slice(0, 6);
+        }
+        if (!detectedCity && bdcData.city) detectedCity = bdcData.city;
+        if (!detectedTown && bdcData.locality) detectedTown = bdcData.locality;
+        if (!detectedState && bdcData.principalSubdivision) detectedState = bdcData.principalSubdivision;
+      }
+    } catch (_) {}
+  }
+
+  // 4. Postal Pincode API for district / state if missing
+  if (detectedPincode && detectedPincode.length === 6 && (!detectedDistrict || !detectedState)) {
+    try {
+      const pinRes = await fetch(`https://api.postalpincode.in/pincode/${detectedPincode}`);
+      const pinData = await pinRes.json();
+      if (pinData?.[0]?.Status === "Success" && pinData[0].PostOffice?.[0]) {
+        const po = pinData[0].PostOffice[0];
+        if (!detectedDistrict) detectedDistrict = po.District || "";
+        if (!detectedState) detectedState = po.State || "";
+      }
+    } catch (_) {}
+  }
+
+  setForm((f) => ({
+    ...f,
+    latitude: latStr,
+    longitude: lngStr,
+    street: detectedStreet || f.street,
+    pincode: detectedPincode || f.pincode,
+    town: detectedTown || detectedCity || f.town,
+    city: detectedCity || f.city,
+    district: detectedDistrict || detectedCity || f.district,
+    state: detectedState || f.state || 'Tamil Nadu',
+  }));
+  setPincodeError("");
   setGeoError("");
   setMapOpen(false);
 };
@@ -1687,11 +1747,13 @@ const handleDeleteConfirm = async () => {
             </Button>
           </Box>
           <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-            Search for a location, drop a pin on the map, or use your current location. Only locations within our delivery area (blue circle) are allowed.
+            {t('mapInstructions', 'Search for a location, drop a pin on the map, or use your current location.')}
           </Typography>
           {pickedLatLng && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Selected location: {pickedLatLng.lat.toFixed(6)}, {pickedLatLng.lng.toFixed(6)}
+            <Alert severity={isWithinDelivery(pickedLatLng.lat, pickedLatLng.lng) ? "info" : "warning"} sx={{ mt: 2 }}>
+              {isWithinDelivery(pickedLatLng.lat, pickedLatLng.lng)
+                ? `${t('selectedLocation', 'Selected location')}: ${pickedLatLng.lat.toFixed(6)}, ${pickedLatLng.lng.toFixed(6)}`
+                : `${t('selectedLocation', 'Selected location')}: ${pickedLatLng.lat.toFixed(6)}, ${pickedLatLng.lng.toFixed(6)} (${t('outsidePrimaryDeliveryZone', 'Outside primary delivery zone, but can be saved')})`}
             </Alert>
           )}
         </DialogContent>
@@ -1700,7 +1762,7 @@ const handleDeleteConfirm = async () => {
           <Button 
             variant="contained" 
             onClick={confirmPickedLocation}
-            disabled={!pickedLatLng || !isWithinDelivery(pickedLatLng.lat, pickedLatLng.lng)}
+            disabled={!pickedLatLng}
             sx={{ textTransform: 'none', fontSize: '0.85rem', minWidth: 140 }}
           >
             {t('selectLocation', 'Select Location')}

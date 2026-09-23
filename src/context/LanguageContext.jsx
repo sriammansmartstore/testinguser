@@ -3,10 +3,15 @@ import { translations } from '../constants/translations';
 
 // Common brand and grocery terms to automatically transliterate / translate into Tamil
 const BRAND_AND_PRODUCT_TERMS_TAMIL = [
-  // Multi-word brands / phrases first
+  // Multi-word brands / phrases first (longest phrases first)
+  ['cadbury dairy milk silk', 'கேட்பரி டெய்ரி மில்க் சில்க்'],
+  ['cadbury dairy milk', 'கேட்பரி டெய்ரி மில்க்'],
+  ['dairy milk silk', 'டெய்ரி மில்க் சில்க்'],
+  ['dairy milk', 'டெய்ரி மில்க்'],
   ['sunsilk shampoo', 'சன்சில்க் ஷாம்பு'],
   ['head & shoulders', 'ஹெட் & ஷோல்டர்ஸ்'],
   ['head and shoulders', 'ஹெட் & ஷோல்டர்ஸ்'],
+  ['clinic plus shampoo', 'கிளினிக் பிளஸ் ஷாம்பு'],
   ['clinic plus', 'கிளினிக் பிளஸ்'],
   ['gold winner', 'கோல்ட் வின்னர்'],
   ['surf excel', 'சர்ப் எக்செல்'],
@@ -29,6 +34,7 @@ const BRAND_AND_PRODUCT_TERMS_TAMIL = [
 
   // Single word brands
   ['sunsilk', 'சன்சில்க்'],
+  ['cadbury', 'கேட்பரி'],
   ['dove', 'டவ்'],
   ['pantene', 'பான்டீன்'],
   ['tresemme', 'டிரெசெம்மே'],
@@ -59,7 +65,6 @@ const BRAND_AND_PRODUCT_TERMS_TAMIL = [
   ['britannia', 'பிரிட்டானியா'],
   ['parle', 'பார்லே'],
   ['sunfeast', 'சன்பீஸ்ட்'],
-  ['cadbury', 'கேட்பரி'],
   ['nestle', 'நெஸ்லே'],
   ['maggi', 'மேகி'],
   ['yippee', 'இப்பி'],
@@ -91,7 +96,10 @@ const BRAND_AND_PRODUCT_TERMS_TAMIL = [
   ['pampers', 'பாம்பர்ஸ்'],
   ['huggies', 'ஹக்கீஸ்'],
 
-  // Grocery product words
+  // Grocery product words & items
+  ['chocolates', 'சாக்லேட்டுகள்'],
+  ['chocolate', 'சாக்லேட்'],
+  ['silk', 'சில்க்'],
   ['shampoos', 'ஷாம்புகள்'],
   ['shampoo', 'ஷாம்பு'],
   ['conditioners', 'கண்டிஷனர்கள்'],
@@ -125,6 +133,7 @@ const BRAND_AND_PRODUCT_TERMS_TAMIL = [
   ['ghee', 'நெய்'],
   ['butter', 'வெண்ணெய்'],
   ['milk', 'பால்'],
+  ['dairy', 'பால் பொருட்கள்'],
   ['curd', 'தயிர்'],
   ['paneer', 'பன்னீர்'],
   ['atta', 'கோதுமை மாவு'],
@@ -173,9 +182,10 @@ const translateTokensToTamil = (rawText) => {
   if (translations.tamil?.[result]) return translations.tamil[result];
   if (translations.tamil?.[lower]) return translations.tamil[lower];
 
-  // Sequentially replace multi-word and single-word tokens
+  // Sequentially replace multi-word and single-word tokens using lookaround boundaries
   for (const [pattern, replacement] of BRAND_AND_PRODUCT_TERMS_TAMIL) {
-    const regex = new RegExp(`\\b${pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?<![a-zA-Z0-9])${escaped}(?![a-zA-Z0-9])`, 'gi');
     result = result.replace(regex, replacement);
   }
 
@@ -186,15 +196,22 @@ const LanguageContext = createContext({
   language: 'english',
   setLanguage: () => {},
   t: (key, fallback = null, variables = null) => key,
-  getProductName: (product) => (typeof product === 'object' ? product?.name : product) || '',
+  getProductName: (product) => (typeof product === 'object' ? (product?.name || product?.title) : product) || '',
   getCategoryName: (name) => name || ''
 });
 
 export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState(() => {
+  const [language, setLanguageState] = useState(() => {
     const saved = localStorage.getItem('appLanguage') || localStorage.getItem('productLanguage') || 'english';
-    return (saved === 'tamil' || saved === 'english') ? saved : 'english';
+    return (saved === 'tamil' || saved === 'ta') ? 'tamil' : 'english';
   });
+
+  const setLanguage = useCallback((val) => {
+    const normalized = (val === 'tamil' || val === 'ta') ? 'tamil' : 'english';
+    setLanguageState(normalized);
+  }, []);
+
+  const isTamil = language === 'tamil' || language === 'ta';
 
   useEffect(() => {
     localStorage.setItem('appLanguage', language);
@@ -203,7 +220,7 @@ export const LanguageProvider = ({ children }) => {
 
   const t = useCallback((key, fallback = null, variables = null) => {
     if (!key) return '';
-    const activeLang = language === 'tamil' ? 'tamil' : 'english';
+    const activeLang = isTamil ? 'tamil' : 'english';
     let text = translations[activeLang]?.[key] || translations['english']?.[key] || fallback || key;
     if (variables && typeof variables === 'object') {
       Object.keys(variables).forEach(k => {
@@ -211,19 +228,21 @@ export const LanguageProvider = ({ children }) => {
       });
     }
     return text;
-  }, [language]);
+  }, [isTamil]);
 
   const getProductName = useCallback((product) => {
     if (!product) return '';
-    const rawName = typeof product === 'object' ? (product.name || '') : String(product);
+    const rawName = typeof product === 'object'
+      ? (product.name || product.title || product.productName || '')
+      : String(product);
 
-    if (language !== 'tamil') {
+    if (!isTamil) {
       return rawName;
     }
 
     // 1. Explicit Tamil fields in product object
     if (typeof product === 'object') {
-      const tn = product.nameTamil || product.tamilName;
+      const tn = product.nameTamil || product.tamilName || product.name_ta || product.tamil_name;
       if (tn && typeof tn === 'string' && tn.trim()) return tn.trim();
     }
 
@@ -240,7 +259,7 @@ export const LanguageProvider = ({ children }) => {
     }
 
     return trimmed;
-  }, [language]);
+  }, [isTamil]);
 
   const getCategoryName = useCallback((catOrName) => {
     if (!catOrName) return '';
@@ -248,7 +267,7 @@ export const LanguageProvider = ({ children }) => {
       ? (catOrName.nameTamil || catOrName.tamilName || catOrName.name || catOrName.id || '')
       : String(catOrName);
 
-    if (language !== 'tamil') {
+    if (!isTamil) {
       if (typeof catOrName === 'object') {
         return catOrName.name || catOrName.id || '';
       }
@@ -285,20 +304,20 @@ export const LanguageProvider = ({ children }) => {
     }
 
     return trimmed;
-  }, [language]);
+  }, [isTamil]);
 
   const getUnitText = useCallback((unit) => {
     if (!unit) return '';
-    if (language === 'tamil') {
+    if (isTamil) {
       const trimmed = String(unit).trim();
       const lower = trimmed.toLowerCase();
       return translations.tamil?.[trimmed] || translations.tamil?.[lower] || trimmed;
     }
     return String(unit);
-  }, [language]);
+  }, [isTamil]);
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t, getProductName, getCategoryName, getUnitText }}>
+    <LanguageContext.Provider value={{ language, isTamil, setLanguage, t, getProductName, getCategoryName, getUnitText }}>
       {children}
     </LanguageContext.Provider>
   );
