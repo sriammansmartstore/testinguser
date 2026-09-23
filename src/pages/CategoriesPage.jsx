@@ -594,7 +594,7 @@ const CategoriesPage = () => {
   const offerProducts = allProductsList.filter(p => p && (p.showOfferBand === true || p.offerZone === true || (typeof p.offerPrice === 'number')));
 
   // Synthetic offer category
-  const offerCategory = { id: 'offer-zone', name: 'Offer Zone', imageUrl: null };
+  const offerCategory = { id: 'offer-zone', name: 'Offer Zone', nameTamil: 'சலுகை மண்டலம்', imageUrl: null };
 
   // Match categories that have products by either id or name (some data layouts use name keys)
   const baseCategoriesWithProducts = categories.filter(cat => productsByCat.has(cat.id) || productsByCat.has(cat.name));
@@ -878,7 +878,7 @@ const CategoriesPage = () => {
                       <CategoryIcon fontSize="small" />
                     </Avatar>
                     <Typography variant="caption" className="category-name">
-                      {getCategoryName(cat.name || cat.id)}
+                      {getCategoryName(cat)}
                     </Typography>
                   </ListItemButton>
                 ))
@@ -911,7 +911,7 @@ const CategoriesPage = () => {
                       ref={(el) => { if (el) categoryTitleRefs.current.set(category.id, el); else categoryTitleRefs.current.delete(category.id); }}
                       data-category-id={category.id}
                     >
-                      {getCategoryName(category.name || category.id)}
+                      {getCategoryName(category)}
                     </Typography>
                     <div className="products-grid">
                       {processedProducts.map(product => (

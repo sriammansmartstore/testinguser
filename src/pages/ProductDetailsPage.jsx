@@ -793,10 +793,10 @@ const ProductDetailsPage = () => {
           border: '1px solid rgba(56,142,60,0.22)'
         }}>
           <Typography variant="body2" sx={{ fontWeight: 800, color: '#2e7d32' }}>
-            You save: ₹{savings.toLocaleString('en-IN')}
+            {t('youSave', 'You save')}: ₹{savings.toLocaleString('en-IN')}
           </Typography>
           <Typography variant="caption" sx={{ fontWeight: 700, color: '#2e7d32', opacity: 0.9 }}>
-            ({discount}% off)
+            ({discount}% {t('off', 'off')})
           </Typography>
         </Box>
       )}
@@ -809,14 +809,14 @@ const ProductDetailsPage = () => {
       )}
       {discount > 0 && (
         <Typography variant="body2" sx={{ color: '#888', fontWeight: 500, fontSize: { xs: '1.05rem', sm: '1.1rem' } }}>
-          (Incl Of All Taxes)
+          ({t('inclusiveOfAllTaxes', 'Incl of all taxes')})
         </Typography>
       )}
     </Box>
   </Box>
 {/* ...existing code... */}
 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-  <Typography variant="body2" sx={{ fontWeight: 700, color: '#555', mr: 1 }}>Qty</Typography>
+  <Typography variant="body2" sx={{ fontWeight: 700, color: '#555', mr: 1 }}>{t('qty', 'Qty')}</Typography>
   <IconButton size="small" sx={{
     width: 32,
     height: 32,

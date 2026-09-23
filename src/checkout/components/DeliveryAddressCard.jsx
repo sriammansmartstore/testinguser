@@ -55,14 +55,37 @@ const DeliveryAddressCard = ({ addresses, selectedAddressId, onAddressChange, on
         try {
           const { latitude, longitude } = position.coords;
           
-          // Create a simple address object with coordinates
+          let detectedPincode = "";
+          let detectedStreet = "Near your current location";
+          let detectedCity = "";
+          let detectedDistrict = "";
+          let detectedState = "";
+
+          try {
+            const nomRes = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+            );
+            if (nomRes.ok) {
+              const data = await nomRes.json();
+              const addr = data.address || {};
+              if (addr.postcode) detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
+              if (addr.road || addr.suburb) {
+                detectedStreet = [addr.road, addr.suburb || addr.neighbourhood].filter(Boolean).join(', ');
+              }
+              detectedCity = addr.city || addr.town || addr.village || "";
+              detectedDistrict = addr.county || addr.district || detectedCity;
+              detectedState = addr.state || "";
+            }
+          } catch (_) {}
+
+          // Create address object with detected coordinates and resolved address
           const newAddress = {
             fullName: auth.currentUser?.displayName || 'My Location',
-            street: 'Near your current location',
-            city: '',
-            district: '',
-            state: '',
-            pincode: '',
+            street: detectedStreet,
+            city: detectedCity,
+            district: detectedDistrict,
+            state: detectedState,
+            pincode: detectedPincode,
             contact: auth.currentUser?.phoneNumber || '',
             latitude,
             longitude,

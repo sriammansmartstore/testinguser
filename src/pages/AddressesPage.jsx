@@ -260,7 +260,7 @@ const AddressesPage = () => {
 
   const verifyOtp = async () => {
     if (!confirmationResult && !verificationId) {
-      setInlineMsg({ type: 'error', text: 'No OTP request found.' });
+      setInlineMsg({ type: 'error', text: t('noOtpRequest', 'No OTP request found.') });
       return;
     }
     setVerifying(true);
@@ -269,10 +269,26 @@ const AddressesPage = () => {
       if (!vid) throw new Error('Missing verification id');
       const credential = PhoneAuthProvider.credential(vid, otp);
       if (auth && auth.currentUser) {
-        await linkWithCredential(auth.currentUser, credential);
+        try {
+          await linkWithCredential(auth.currentUser, credential);
+        } catch (linkErr) {
+          console.debug('[Addresses] linkWithCredential caught:', linkErr);
+          // If the phone number is already linked or credential already in use by another account,
+          // the OTP itself was confirmed valid by Firebase servers before this rejection!
+          if (
+            linkErr?.code === 'auth/credential-already-in-use' ||
+            linkErr?.code === 'auth/provider-already-linked' ||
+            linkErr?.message?.includes('credential-already-in-use') ||
+            linkErr?.message?.includes('provider-already-linked')
+          ) {
+            console.log('[Addresses] OTP confirmed valid; phone already registered in Firebase auth');
+          } else {
+            throw linkErr;
+          }
+        }
         setPhoneVerified(true);
         setVerifiedPhoneNumber(countryCode + (form.contact || '').replace(/\D/g, ''));
-        setInlineMsg(null);
+        setInlineMsg({ type: 'success', text: t('phoneVerified', 'Phone number verified!') });
         try {
           // Persist verification to the canonical user document. Prefer mappedUserId when available.
           const targetUserId = mappedUserId || userId;
@@ -293,7 +309,7 @@ const AddressesPage = () => {
         const res = await confirmationResult.confirm(otp);
         setPhoneVerified(true);
         setVerifiedPhoneNumber(countryCode + (form.contact || '').replace(/\D/g, ''));
-        setInlineMsg(null);
+        setInlineMsg({ type: 'success', text: t('phoneVerified', 'Phone number verified!') });
         try {
           const targetUserId = mappedUserId || userId;
           if (targetUserId) {
@@ -311,65 +327,162 @@ const AddressesPage = () => {
         }
       }
     } catch (err) {
-    console.debug('[Addresses] verifyOtp error', err);
-    if (err && (err.code === 'auth/provider-already-linked')) {
-      setPhoneVerified(true);
-       setInlineMsg({ type: 'success', text: 'Phone number already linked.' });
-     } else {
-       setInlineMsg({ type: 'error', text: 'Verification failed. Check the OTP and try again.' });
-     }
-   } finally {
-     setVerifying(false);
-   }
- };
- 
- // Geolocation helpers
- const handleUseCurrentLocation = () => {
-   setGeoError("");
-   if (!('geolocation' in navigator)) {
-     setGeoError('Geolocation is not supported by your browser');
-     return;
-   }
-   // Require contact to be verified if it differs from existing linked/profile number
-    try {
-      const full = asFullPhone(form.contact);
-      const authPhone = auth && auth.currentUser ? (auth.currentUser.phoneNumber || null) : null;
-      const alreadyVerified = (full && (sameNumber(full, authPhone) || sameNumber(full, verifiedPhoneNumber)));
-      if (!alreadyVerified && !phoneVerified) {
-        setFormError("Please verify the contact number via OTP before saving the address.");
-        return;
+      console.debug('[Addresses] verifyOtp error', err);
+      if (
+        err &&
+        (err.code === 'auth/provider-already-linked' ||
+          err.code === 'auth/credential-already-in-use' ||
+          err?.message?.includes('provider-already-linked') ||
+          err?.message?.includes('credential-already-in-use'))
+      ) {
+        setPhoneVerified(true);
+        setVerifiedPhoneNumber(countryCode + (form.contact || '').replace(/\D/g, ''));
+        setInlineMsg({ type: 'success', text: t('phoneVerified', 'Phone number verified!') });
+      } else if (err && err.code === 'auth/invalid-verification-code') {
+        setInlineMsg({ type: 'error', text: t('invalidOtp', 'Invalid OTP. Please check the code and try again.') });
+      } else if (err && err.code === 'auth/code-expired') {
+        setInlineMsg({ type: 'error', text: t('otpExpired', 'OTP has expired. Please click Resend OTP.') });
+      } else {
+        setInlineMsg({ type: 'error', text: err?.message || t('verificationFailed', 'Verification failed. Check the OTP and try again.') });
       }
-    } catch (_) {}
-   setGeoLoading(true);
-   try {
-     navigator.geolocation.getCurrentPosition(
-       (pos) => {
-         const { latitude, longitude } = pos.coords || {};
-         if (typeof latitude === 'number' && typeof longitude === 'number') {
-           setForm((f) => ({ ...f, latitude: String(latitude), longitude: String(longitude) }));
-           // Persist current location as well
-           try {
-             if (mappedUserId) {
-               const locDocRef = doc(collection(db, `users/${mappedUserId}/locations`));
-               setDoc(locDocRef, { latitude, longitude, pickedAt: serverTimestamp(), source: 'current_location' });
-             }
-           } catch (_) { /* non-blocking */ }
-         } else {
-           setGeoError('Failed to read your location coordinates');
-         }
-         setGeoLoading(false);
-       },
-       (err) => {
-         setGeoError(err && err.message ? err.message : 'Unable to get current location');
-         setGeoLoading(false);
-       },
-       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-     );
-   } catch (e) {
-     setGeoError('Location request failed');
-     setGeoLoading(false);
-   }
- };
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  // Geolocation helpers with automatic address reverse-geocoding
+  const handleUseCurrentLocation = () => {
+    setGeoError("");
+    if (!('geolocation' in navigator)) {
+      setGeoError(t('geoNotSupported', 'Geolocation is not supported by your browser'));
+      return;
+    }
+    setGeoLoading(true);
+    try {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const { latitude, longitude } = pos.coords || {};
+          if (typeof latitude === 'number' && typeof longitude === 'number') {
+            const latStr = String(latitude);
+            const lngStr = String(longitude);
+
+            // Persist current location coordinate
+            try {
+              if (mappedUserId) {
+                const locDocRef = doc(collection(db, `users/${mappedUserId}/locations`));
+                setDoc(locDocRef, { latitude, longitude, pickedAt: serverTimestamp(), source: 'current_location' });
+              }
+            } catch (_) {}
+
+            let detectedPincode = "";
+            let detectedStreet = "";
+            let detectedTown = "";
+            let detectedCity = "";
+            let detectedDistrict = "";
+            let detectedState = "";
+
+            // 1. Try Google Maps Geocoder if loaded
+            if (window.google && window.google.maps && window.google.maps.Geocoder) {
+              try {
+                const geocoder = new window.google.maps.Geocoder();
+                const res = await new Promise((resolve) => {
+                  geocoder.geocode({ location: { lat: latitude, lng: longitude } }, (results, status) => {
+                    if (status === 'OK' && results && results[0]) {
+                      resolve(results[0]);
+                    } else {
+                      resolve(null);
+                    }
+                  });
+                });
+                if (res && res.address_components) {
+                  for (const comp of res.address_components) {
+                    const types = comp.types || [];
+                    if (types.includes('postal_code')) detectedPincode = comp.long_name;
+                    if (types.includes('route') || types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
+                      if (!detectedStreet) detectedStreet = comp.long_name;
+                    }
+                    if (types.includes('locality')) detectedCity = comp.long_name;
+                    if (types.includes('sublocality_level_2') || types.includes('sublocality_level_1')) {
+                      if (!detectedTown) detectedTown = comp.long_name;
+                    }
+                    if (types.includes('administrative_area_level_2')) detectedDistrict = comp.long_name;
+                    if (types.includes('administrative_area_level_1')) detectedState = comp.long_name;
+                  }
+                }
+              } catch (e) {
+                console.warn('[Addresses] Google geocoder error:', e);
+              }
+            }
+
+            // 2. Fallback / Complement with OpenStreetMap Nominatim reverse geocode
+            if (!detectedPincode || !detectedCity || !detectedStreet) {
+              try {
+                const nomRes = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`
+                );
+                if (nomRes.ok) {
+                  const data = await nomRes.json();
+                  const addr = data.address || {};
+                  if (!detectedPincode && addr.postcode) {
+                    detectedPincode = addr.postcode.replace(/\D/g, '').slice(0, 6);
+                  }
+                  if (!detectedStreet) {
+                    detectedStreet = [addr.road, addr.suburb || addr.neighbourhood || addr.residential].filter(Boolean).join(', ');
+                  }
+                  if (!detectedTown) detectedTown = addr.suburb || addr.village || addr.town || addr.city_district || "";
+                  if (!detectedCity) detectedCity = addr.city || addr.town || addr.village || addr.municipality || "";
+                  if (!detectedDistrict) detectedDistrict = addr.county || addr.state_district || addr.district || detectedCity;
+                  if (!detectedState) detectedState = addr.state || "";
+                }
+              } catch (nomErr) {
+                console.warn('[Addresses] Nominatim reverse geocode error:', nomErr);
+              }
+            }
+
+            // 3. Indian Postal Pincode API if 6-digit pincode detected
+            if (detectedPincode && detectedPincode.length === 6) {
+              try {
+                const pinRes = await fetch(`https://api.postalpincode.in/pincode/${detectedPincode}`);
+                const pinData = await pinRes.json();
+                if (pinData?.[0]?.Status === "Success" && pinData[0].PostOffice?.[0]) {
+                  const po = pinData[0].PostOffice[0];
+                  if (!detectedTown) detectedTown = po.Name || "";
+                  if (!detectedCity) detectedCity = po.Division || detectedCity;
+                  if (!detectedDistrict) detectedDistrict = po.District || detectedDistrict;
+                  if (!detectedState) detectedState = po.State || detectedState;
+                }
+              } catch (_) {}
+            }
+
+            // Automatically fill street, pincode, town, city, district, state, leaving door number for manual entry
+            setForm((f) => ({
+              ...f,
+              latitude: latStr,
+              longitude: lngStr,
+              street: detectedStreet || f.street,
+              pincode: detectedPincode || f.pincode,
+              town: detectedTown || detectedCity || f.town,
+              city: detectedCity || f.city,
+              district: detectedDistrict || detectedCity || f.district,
+              state: detectedState || f.state,
+            }));
+            setPincodeError("");
+          } else {
+            setGeoError('Failed to read your location coordinates');
+          }
+          setGeoLoading(false);
+        },
+        (err) => {
+          setGeoError(err && err.message ? err.message : 'Unable to get current location');
+          setGeoLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      );
+    } catch (e) {
+      setGeoError('Location request failed');
+      setGeoLoading(false);
+    }
+  };
  
 // Map picker using Google Maps
 const openMapPicker = async () => {
@@ -568,7 +681,9 @@ const confirmPickedLocation = async () => {
     setGeoError('Selected location is outside our delivery area. Please choose a location within range.');
     return;
   }
-  setForm((f) => ({ ...f, latitude: String(lat), longitude: String(lng) }));
+  const latStr = String(lat);
+  const lngStr = String(lng);
+  setForm((f) => ({ ...f, latitude: latStr, longitude: lngStr }));
   // Also persist this picked location to Firestore under the current user
   try {
     if (mappedUserId) {
@@ -578,6 +693,63 @@ const confirmPickedLocation = async () => {
   } catch (e) {
     console.warn('Failed to persist picked location:', e);
   }
+
+  // Reverse geocode picked location to automatically fill street, pincode, city, state
+  try {
+    if (window.google && window.google.maps && window.google.maps.Geocoder) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+        if (status === 'OK' && results && results[0]) {
+          let pPin = "", pStreet = "", pTown = "", pCity = "", pDist = "", pState = "";
+          for (const comp of results[0].address_components) {
+            const types = comp.types || [];
+            if (types.includes('postal_code')) pPin = comp.long_name;
+            if (types.includes('route') || types.includes('sublocality_level_1') || types.includes('sublocality') || types.includes('neighborhood')) {
+              if (!pStreet) pStreet = comp.long_name;
+            }
+            if (types.includes('locality')) pCity = comp.long_name;
+            if (types.includes('sublocality_level_2') || types.includes('sublocality_level_1')) {
+              if (!pTown) pTown = comp.long_name;
+            }
+            if (types.includes('administrative_area_level_2')) pDist = comp.long_name;
+            if (types.includes('administrative_area_level_1')) pState = comp.long_name;
+          }
+          setForm((f) => ({
+            ...f,
+            street: f.street || pStreet,
+            pincode: f.pincode || pPin,
+            town: f.town || pTown || pCity,
+            city: f.city || pCity,
+            district: f.district || pDist,
+            state: f.state || pState
+          }));
+        }
+      });
+    } else {
+      // Fallback with OpenStreetMap
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`)
+        .then((res) => res.json())
+        .then((data) => {
+          const addr = data?.address || {};
+          const pPin = addr.postcode ? addr.postcode.replace(/\D/g, '').slice(0, 6) : "";
+          const pStreet = [addr.road, addr.suburb || addr.neighbourhood].filter(Boolean).join(', ');
+          const pCity = addr.city || addr.town || addr.village || "";
+          const pDist = addr.county || addr.district || pCity;
+          const pState = addr.state || "";
+          setForm((f) => ({
+            ...f,
+            street: f.street || pStreet,
+            pincode: f.pincode || pPin,
+            town: f.town || pCity,
+            city: f.city || pCity,
+            district: f.district || pDist,
+            state: f.state || pState
+          }));
+        })
+        .catch(() => {});
+    }
+  } catch (_) {}
+
   setGeoError("");
   setMapOpen(false);
 };
@@ -1085,7 +1257,7 @@ const handleDeleteConfirm = async () => {
             {/* Personal Details */}
             <Grid item xs={12}>
               <TextField
-                label="Full Name *"
+                label={`${t('fullName', 'Full Name')} *`}
                 value={form.fullName}
                 onChange={(e) =>
                   setForm({ ...form, fullName: e.target.value })
@@ -1097,7 +1269,7 @@ const handleDeleteConfirm = async () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Father/Spouse Name"
+                label={t('fatherOrSpouse', 'Father/Spouse Name')}
                 value={form.fatherOrSpouse}
                 onChange={(e) =>
                   setForm({ ...form, fatherOrSpouse: e.target.value })
@@ -1111,7 +1283,7 @@ const handleDeleteConfirm = async () => {
             {/* Address Line 1 */}
             <Grid item xs={12}>
               <TextField
-                label="Door No. *"
+                label={`${t('doorNo', 'Door No.')} *`}
                 value={form.door}
                 onChange={(e) => setForm({ ...form, door: e.target.value })}
                 fullWidth
@@ -1121,7 +1293,7 @@ const handleDeleteConfirm = async () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Street Name *"
+                label={`${t('streetName', 'Street Name')} *`}
                 value={form.street}
                 onChange={(e) => setForm({ ...form, street: e.target.value })}
                 fullWidth
@@ -1133,7 +1305,7 @@ const handleDeleteConfirm = async () => {
             {/* Location Details */}
             <Grid item xs={12}>
               <TextField
-                label="Pincode *"
+                label={`${t('pincode', 'Pincode')} *`}
                 value={form.pincode}
                 onChange={(e) => setForm({ ...form, pincode: e.target.value })}
                 onBlur={handlePincodeBlur}
@@ -1141,12 +1313,12 @@ const handleDeleteConfirm = async () => {
                 variant="outlined"
                 size="medium"
                 error={!!pincodeError}
-                helperText={pincodeLoading ? "Fetching location..." : pincodeError}
+                helperText={pincodeLoading ? t('fetchingLocation', 'Fetching location...') : pincodeError}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Town *"
+                label={`${t('town', 'Town')} *`}
                 value={form.town}
                 onChange={(e) => setForm({ ...form, town: e.target.value })}
                 fullWidth
@@ -1156,7 +1328,7 @@ const handleDeleteConfirm = async () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="City *"
+                label={`${t('city', 'City')} *`}
                 value={form.city}
                 onChange={(e) => setForm({ ...form, city: e.target.value })}
                 fullWidth
@@ -1166,7 +1338,7 @@ const handleDeleteConfirm = async () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="District *"
+                label={`${t('district', 'District')} *`}
                 value={form.district}
                 onChange={(e) =>
                   setForm({ ...form, district: e.target.value })
@@ -1178,7 +1350,7 @@ const handleDeleteConfirm = async () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="State *"
+                label={`${t('state', 'State')} *`}
                 value={form.state}
                 onChange={(e) => setForm({ ...form, state: e.target.value })}
                 fullWidth
@@ -1190,7 +1362,7 @@ const handleDeleteConfirm = async () => {
             {/* Contact Details */}
             <Grid item xs={12}>
               <TextField
-                label="Contact Number *"
+                label={`${t('contactNumber', 'Contact Number')} *`}
                 value={form.contact}
                 onChange={(e) => setForm({ ...form, contact: e.target.value.replace(/\D/g, '') })}
                 fullWidth
@@ -1206,16 +1378,16 @@ const handleDeleteConfirm = async () => {
                   disabled={!form.contact || phoneVerified}
                   sx={{ textTransform: 'none' }}
                 >
-                  {phoneVerified ? 'Verified' : (otpSent ? 'Resend OTP' : 'Send OTP')}
+                  {phoneVerified ? t('verified', 'Verified') : (otpSent ? t('resendOtp', 'Resend OTP') : t('sendOtp', 'Send OTP'))}
                 </Button>
                 {phoneVerified && (
-                  <Typography variant="caption" color="success.main">Phone number verified</Typography>
+                  <Typography variant="caption" color="success.main">{t('phoneVerified', 'Phone number verified!')}</Typography>
                 )}
               </Box>
               {otpSent && !phoneVerified && (
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 1 }}>
                   <TextField
-                    label="Enter OTP"
+                    label={t('enterOtp', 'Enter OTP')}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                     variant="outlined"
@@ -1230,7 +1402,7 @@ const handleDeleteConfirm = async () => {
                     disabled={!otp || verifying}
                     sx={{ textTransform: 'none' }}
                   >
-                    {verifying ? 'Verifying…' : 'Verify OTP'}
+                    {verifying ? t('verifying', 'Verifying…') : t('verifyOtp', 'Verify OTP')}
                   </Button>
                 </Box>
               )}
@@ -1244,7 +1416,7 @@ const handleDeleteConfirm = async () => {
             </Grid>
             <Grid item xs={12}>
               <TextField
-                label="Alternative Contact"
+                label={t('alternativeContact', 'Alternative Contact')}
                 value={form.altContact}
                 onChange={(e) =>
                   setForm({ ...form, altContact: e.target.value })
@@ -1258,7 +1430,7 @@ const handleDeleteConfirm = async () => {
             {/* Landmark */}
             <Grid item xs={12}>
               <TextField
-                label="Landmark (e.g., Near ABC School)"
+                label={t('landmarkPlaceholder', 'Landmark (e.g., Near ABC School)')}
                 value={form.landmark}
                 onChange={(e) => setForm({ ...form, landmark: e.target.value })}
                 fullWidth
@@ -1272,12 +1444,12 @@ const handleDeleteConfirm = async () => {
             {/* GPS Location (Required) */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-                Location Coordinates (Required)
+                {t('locationCoordinatesRequired', 'Location Coordinates (Required)')}
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
-                    label="Latitude *"
+                    label={`${t('latitude', 'Latitude')} *`}
                     value={form.latitude}
                     onChange={(e) => setForm({ ...form, latitude: e.target.value })}
                     fullWidth
@@ -1288,7 +1460,7 @@ const handleDeleteConfirm = async () => {
                 </Grid>
                 <Grid item xs={12}>
                   <TextField
-                    label="Longitude *"
+                    label={`${t('longitude', 'Longitude')} *`}
                     value={form.longitude}
                     onChange={(e) => setForm({ ...form, longitude: e.target.value })}
                     fullWidth
@@ -1304,7 +1476,7 @@ const handleDeleteConfirm = async () => {
                     disabled={geoLoading}
                     sx={{ fontWeight: 600, borderRadius: 2 }}
                   >
-                    {geoLoading ? 'Fetching Current Location…' : 'Use Current Location'}
+                    {geoLoading ? t('fetchingCurrentLocation', 'Fetching Current Location…') : t('useCurrentLocation', 'Use Current Location')}
                   </Button>
                 </Grid>
                 <Grid item xs={12}>
@@ -1313,7 +1485,7 @@ const handleDeleteConfirm = async () => {
                     variant="outlined"
                     sx={{ fontWeight: 600, borderRadius: 2 }}
                   >
-                    Pick on Map
+                    {t('pickOnMap', 'Pick on Map')}
                   </Button>
                 </Grid>
               </Grid>
@@ -1383,7 +1555,7 @@ const handleDeleteConfirm = async () => {
           }
         }}
       >
-        <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 1.5, sm: 2 } }}>Select Location on Map</DialogTitle>
+        <DialogTitle sx={{ px: { xs: 2, sm: 3 }, pt: { xs: 1.5, sm: 2 } }}>{t('selectLocationOnMap', 'Select Location on Map')}</DialogTitle>
   <DialogContent sx={{ px: { xs: 1.5, sm: 3 }, pt: 1, pb: 0, display: 'flex', flexDirection: 'column', gap: 1, overflowY: 'auto' }}>
           {mapInitError && (
             <Alert severity="error" sx={{ mb: 2 }}>{mapInitError}</Alert>
@@ -1391,11 +1563,11 @@ const handleDeleteConfirm = async () => {
           <Box sx={{ mb: 1 }}>
             <TextField
               id="map-search-box"
-              label="Search for a location"
+              label={t('searchLocation', 'Search for a location')}
               fullWidth
               variant="outlined"
               size="small"
-              placeholder="Enter an address or landmark"
+              placeholder={t('enterAddressOrLandmark', 'Enter an address or landmark')}
               autoComplete="off"
             />
           </Box>
@@ -1436,14 +1608,14 @@ const handleDeleteConfirm = async () => {
           )}
         </DialogContent>
         <DialogActions sx={{ position: 'sticky', bottom: 0, backgroundColor: 'background.paper', zIndex: 1600, py: 1, px: { xs: 2, sm: 3 }, boxShadow: '0 -6px 18px rgba(0,0,0,0.08)' }}>
-          <Button onClick={() => setMapOpen(false)} sx={{ textTransform: 'none', fontSize: '0.85rem' }}>Cancel</Button>
+          <Button onClick={() => setMapOpen(false)} sx={{ textTransform: 'none', fontSize: '0.85rem' }}>{t('cancel')}</Button>
           <Button 
             variant="contained" 
             onClick={confirmPickedLocation}
             disabled={!pickedLatLng || !isWithinDelivery(pickedLatLng.lat, pickedLatLng.lng)}
             sx={{ textTransform: 'none', fontSize: '0.85rem', minWidth: 140 }}
           >
-            Select Location
+            {t('selectLocation', 'Select Location')}
           </Button>
         </DialogActions>
       </Dialog>

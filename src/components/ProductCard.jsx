@@ -53,7 +53,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
   const { user } = useContext(AuthContext);
   // cart state awareness
   // Language context for product name display
-  const { language, t, getProductName } = useLanguage();
+  const { language, t, getProductName, getUnitText } = useLanguage();
   const getDisplayName = () => {
     return getProductName(product);
   };
@@ -305,7 +305,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
         >
           {(product.offerZone === true || product.showOfferBand === true || typeof product.offerPrice === 'number') && (
             <Box sx={{ position: 'absolute', left: 8, top: 8, zIndex: 15, bgcolor: '#d32f2f', color: '#fff', px: 1.2, py: 0.4, borderRadius: 1, fontWeight: 800, fontSize: '0.75rem' }}>
-              OFFER
+              {t('offerBadge', 'OFFER')}
             </Box>
           )}
           <CardMedia
@@ -379,15 +379,15 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
           {/* Unit and offer row */}
           {(option.unit && option.unitSize) || discount ? (
             <Typography variant="caption" sx={{ color: '#666', fontWeight: 500, fontSize: '0.89em', display: 'block', mt: 0.1, mb: 0, lineHeight: 1.1 }}>
-              {option.unitSize && option.unit ? `${option.unitSize} ${option.unit}` : ''}
+              {option.unitSize && option.unit ? `${option.unitSize} ${getUnitText ? getUnitText(option.unit) : option.unit}` : ''}
               {option.unitSize && option.unit && discount ? ' | ' : ''}
-              {discount ? <span style={{ color: '#d32f2f', fontWeight: 600 }}>{discount}% off</span> : null}
+              {discount ? <span style={{ color: '#d32f2f', fontWeight: 600 }}>{discount}% {t('off', 'off')}</span> : null}
             </Typography>
           ) : null}
           {/* You save row */}
           {option.mrp && option.mrp > effectiveSellingPrice && (
             <Typography sx={{ color: '#2e7d32', fontWeight: 800, fontSize: '0.93rem', lineHeight: 1.1, mt: 0.1, textAlign: 'center' }}>
-              You save: ₹{Math.max(0, (option.mrp || 0) - (effectiveSellingPrice || 0))}
+              {t('youSave', 'You save')}: ₹{Number((Math.max(0, (option.mrp || 0) - (effectiveSellingPrice || 0))).toFixed(2))}
             </Typography>
           )}
         </Box>
@@ -426,7 +426,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
               disabled={product.outOfStock}
               sx={{ height: 40, minHeight: 40, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
             >
-              {inCartAnyVariant ? 'Add Another' : 'Add Options'}
+              {product.outOfStock ? t('outOfStock', 'Out of Stock') : (inCartAnyVariant ? t('addAnother', 'Add Another') : t('addOptions', 'Add Options'))}
             </Button>
           </Box>
         ) : (
@@ -449,7 +449,7 @@ const ProductCard = ({ product, onAddToCart, onAddToWishlist }) => {
               disabled={product.outOfStock}
               sx={{ height: 40, minHeight: 40, borderRadius: 2, fontWeight: 800, textTransform: 'none', whiteSpace: 'nowrap' }}
             >
-              {hasCurrentVariantInCart ? (t('cart') ? `${t('cart')}` : 'Go to Cart') : (t('addToCart') || 'Add')}
+              {product.outOfStock ? t('outOfStock', 'Out of Stock') : (hasCurrentVariantInCart ? t('goToCart', 'Go to Cart') : t('addToCart', 'Add'))}
             </Button>
           )
         )}
